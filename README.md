@@ -11,7 +11,7 @@ Included tools:
 
 To fetch them:
 ```console
-git submodule update --init --recursive
+$ git submodule update --init --recursive
 ```
 
 ## Setup
@@ -28,10 +28,10 @@ $ sudo dnf install autoconf automake @development-tools curl dtc libmpc-devel mp
 
 To properly build the U-Boot and Linux binaries, you first have to export some variables:
 ```console
-export ARCH=riscv
-export CROSS_COMPILE=riscv64-unknown-linux-gnu-
-export RISCV=<path-to-your-riscv-toolchain>
-export PATH=$RISCV/bin:$PATH
+$ export ARCH=riscv
+$ export CROSS_COMPILE=riscv64-unknown-linux-gnu-
+$ export RISCV=<path-to-your-riscv-toolchain>
+$ export PATH=$RISCV/bin:$PATH
 ````
 
 ## Linux
@@ -101,8 +101,8 @@ $ riscv64-unknown-elf-gdb ~/spi/u-boot-spl
 
 On another terminal compile the dts and launch openocd (which will load the dtb to `0x1C040000`:
 ```console
-dtc -I dts ./u-boot/arch/riscv/dts/occamy.dts -O dtb -o occamy.dtb
-sudo /home/pulpone/riscv-openocd/src/openocd -f zcu-102-ariane.cfg
+$ dtc -I dts ./u-boot/arch/riscv/dts/occamy.dts -O dtb -o occamy.dtb
+$ sudo /home/pulpone/riscv-openocd/src/openocd -f zcu-102-ariane.cfg
 ```
 
 We'll align the dtb name and platform name to the correct one ASAP. We also plan to eventually remove JTAG+OPENOCD as zero stage boot-loader :)
