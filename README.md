@@ -51,6 +51,15 @@ $ make u-boot/u-boot.itb
 $ make uImage
 ```
 
+### HERO-generated Linux Image
+
+If you really like [HERO](https://github.com/yvantor/hero/tree/alsaqr), you can copy here the image generated in `output/br-hrv/images/Image` and then do:
+
+```
+gzip -9 -k --force Image > Image.gz 
+u-boot/tools/mkimage -A riscv -O linux -T kernel -C gzip -a 84000000 -e 84000000 -n "linux" -d Image.gz uImage
+````
+
 ### FPGA Setup + Launch
 
 The first command generates U-BOOT-SPL and OPEN-SBI + U-BOOT. The second one generates the Linux kernel image in U-BOOT format. To launch Linux we need: `u-boot/spl/u-boot-spl`, `u-boot/u-boot.itb` and `uImage`.
