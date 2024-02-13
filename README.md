@@ -260,3 +260,7 @@ load_image alsaqr.dtb 0x81800000
 
 When using the FMC, the bitstream works at 10MHz and the baudrate has to be set to 9600. Booting Linux on the Hyper is
 considerably slower than the DDR.
+
+### QEMU
+
+`qemu-system-riscv64 -M virt -m 256M -nographic     -bios opensbi/build/platform/generic/firmware/fw_jump.bin       -kernel install64/Image         -append "root=/dev/vda rw console=ttyS0"`

@@ -14,40 +14,66 @@ extern int printf(const char *format, ...);
   asm volatile ("csrr %0, " #reg : "=r"(__tmp)); \
   __tmp; })
 
-char buffer[1024 * 1024];
+#define write_csr(reg, val) ({ \
+  asm volatile ("csrw " #reg ", %0" :: "rK"(val)); })
+
+volatile long int buffer[1024 * 16 * 8];
 
 void sweep(int stride)
 {
-  long instret_start, cycle_start;
-  int max_j = 4 * 1024;
+  volatile long instrets_start, cycles_start, icachemiss_start, dcachemiss_start;
+  volatile long levent_start, sevent_start, ifempty_start, stall_start;
+  volatile long instrets, cycles, icachemiss, dcachemiss;
+  volatile long levent, sevent, ifempty, stall;
+  int max_j = 16 * 1024 / 8;
   int working_set = max_j * stride;
 
   for(int i = 0; i < 10; i++)
   {
+    asm volatile("": : :"memory");     
     if(i == 1)
     {
-      instret_start = read_csr(instret);
-      cycle_start = read_csr(cycle);
+      instrets_start   = read_csr(instret);
+      cycles_start     = read_csr(cycle);
+      icachemiss_start = read_csr(0xc03);
+      dcachemiss_start = read_csr(0xc04);
+      levent_start     = read_csr(0xc05);
+      sevent_start     = read_csr(0xc06);
+      ifempty_start    = read_csr(0xc07);
+      stall_start      = read_csr(0xc08);
     }
 
-    for(int j = 0; j < max_j; j += 4)
+    asm volatile("": : :"memory");     
+    for(int j = 0; j < max_j; j++)
     {
-      buffer[(j + 0) * stride] = 0;
-      buffer[(j + 1) * stride] = 0;
-      buffer[(j + 2) * stride] = 0;
-      buffer[(j + 3) * stride] = 0;
+      buffer[j] = icachemiss_start;
     }
+    asm volatile("": : :"memory");    
+    for(int j = 0; j < max_j; j++)
+    {
+      buffer[j*stride] = dcachemiss_start;
+    }
+    asm volatile("": : :"memory");
+
   }
 
-  long instrets = read_csr(instret) - instret_start;
-  long cycles = read_csr(cycle) - cycle_start;
+  instrets   = read_csr(instret) - instrets_start;
+  cycles     = read_csr(cycle) - cycles_start;
+  icachemiss = read_csr(0xc03) - icachemiss_start;
+  dcachemiss = read_csr(0xc04) - dcachemiss_start;
+  levent     = read_csr(0xc05) - levent_start;
+  sevent     = read_csr(0xc06) - sevent_start;
+  ifempty    = read_csr(0xc07) - ifempty_start;
+  stall      = read_csr(0xc08) - stall_start;
 
-  printf("working_set = %2dKB, %ld instructions, %ld cycles, CPI = %f\n", 
-         working_set / 1024, instrets, cycles, (float) cycles / instrets);
+  printf("%2dKB, %ld, %ld, %f, %ld, %ld, %ld, %ld, %ld, %ld,\n", 
+         working_set / 1024, instrets, cycles, (float) cycles / instrets, icachemiss, dcachemiss, levent, sevent, ifempty, stall);
 }
 
 int main()
 {
+  printf("working_set, instructions, cycles,    CPI, icachemiss, dcachemiss, levent, sevent, ifempty,    stall\n"); 
+
   sweep(0);
   sweep(1);
   sweep(2);

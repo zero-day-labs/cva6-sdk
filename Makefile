@@ -82,7 +82,13 @@ rootfs/cachetest.elf: $(CC)
 	cd ./cachetest/ && $(CC) cachetest.c -o cachetest.elf
 	cp ./cachetest/cachetest.elf $@
 
-$(RISCV)/vmlinux: $(buildroot_defconfig) $(linux_defconfig) $(busybox_defconfig) $(CC) rootfs/cachetest.elf
+rootfs/perf: $(CC)
+	make -C Splash-3/codes all
+	mkdir -p $@
+	cp -r Splash-3/codes/splash3 $@/splash3
+	cp -r Splash-3/codes/kernels $@/splash3/codes
+
+$(RISCV)/vmlinux: $(buildroot_defconfig) $(linux_defconfig) $(busybox_defconfig) $(CC) rootfs/cachetest.elf rootfs/perf
 	mkdir -p $(RISCV)
 	make -C buildroot $(buildroot-mk)
 	cp buildroot/output/images/vmlinux $@
@@ -108,6 +114,11 @@ $(MKIMAGE) u-boot/u-boot.bin: $(CC)
 # OpenSBI with u-boot as payload
 $(RISCV)/fw_payload.bin: $(RISCV)/Image
 	make -C opensbi FW_PAYLOAD_PATH=$< $(sbi-mk)
+	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
+	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
+
+$(RISCV)/test_fw_payload.bin:
+	make -C opensbi $(sbi-mk)
 	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
 	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
 
@@ -139,6 +150,7 @@ format-sd: $(SDDEVICE)
 gcc: $(CC)
 vmlinux: $(RISCV)/vmlinux
 fw_payload.bin: $(RISCV)/fw_payload.bin
+test_fw_payload.bin: $(RISCV)/test_fw_payload.bin
 uImage: $(RISCV)/uImage
 spike_payload: $(RISCV)/spike_fw_payload.elf
 
@@ -154,11 +166,14 @@ clean:
 	make -C u-boot clean
 	make -C opensbi distclean
 
+lqemu:
+	qemu-system-riscv64 -M virt -m 256M -nographic     -bios opensbi/build/platform/generic/firmware/fw_jump.bin       -kernel install64/Image         -append "root=/dev/vda rw console=ttyS0"
+
 clean-all: clean
 	rm -rf $(RISCV) riscv-isa-sim/build riscv-tests/build
 	make -C buildroot clean
 
-.PHONY: gcc vmlinux images help fw_payload.bin uImage alsaqr.dtb
+.PHONY: gcc vmlinux images help fw_payload.bin uImage alsaqr.dtb test_fw_payload.bin
 
 help:
 	@echo "usage: $(MAKE) [tool/img] ..."

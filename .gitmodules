@@ -15,3 +15,6 @@
 [submodule "opensbi"]
 	path = opensbi
 	url = https://github.com/alsaqr-platform/opensbi.git
+[submodule "Splash-3"]
+	path = Splash-3
+	url = https://github.com/AlSaqr-platform/Splash-3
