@@ -18,3 +18,6 @@
 [submodule "bao-hypervisor"]
 	path = bao-hypervisor
 	url = https://github.com/D3boker1/bao-hypervisor.git
+[submodule "local-linux/linux-6.1-rc4-aia"]
+	path = local-linux/linux-6.1-rc4-aia
+	url = https://github.com/D3boker1/linux-aia.git
