@@ -21,3 +21,6 @@
 [submodule "local-linux/linux-6.1-rc4-aia"]
 	path = local-linux/linux-6.1-rc4-aia
 	url = https://github.com/D3boker1/linux-aia.git
+[submodule "bao-baremetal-guest"]
+	path = bao-baremetal-guest
+	url = https://github.com/D3boker1/bao-baremetal-guest.git
