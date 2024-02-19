@@ -77,12 +77,7 @@ $(CC): $(buildroot_defconfig) $(linux_defconfig) $(busybox_defconfig)
 
 all: $(CC) isa-sim
 
-# benchmark for the cache subsystem
-rootfs/cachetest.elf: $(CC)
-	cd ./cachetest/ && $(CC) cachetest.c -o cachetest.elf
-	cp ./cachetest/cachetest.elf $@
-
-$(RISCV)/vmlinux: $(buildroot_defconfig) $(linux_defconfig) $(busybox_defconfig) $(CC) rootfs/cachetest.elf
+$(RISCV)/vmlinux: $(buildroot_defconfig) $(linux_defconfig) $(busybox_defconfig) $(CC)
 	mkdir -p $(RISCV)
 	make -C buildroot $(buildroot-mk)
 	cp buildroot/output/images/vmlinux $@
