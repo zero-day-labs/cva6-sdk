@@ -14,7 +14,8 @@ MKIMAGE     := u-boot/tools/mkimage
 NR_CORES := $(shell nproc)
 
 # SBI options
-PLATFORM := fpga/alsaqr
+PLATFORM_RAW := alsaqr
+PLATFORM := fpga/$(PLATFORM_RAW)
 sbi-mk = PLATFORM=$(PLATFORM) CROSS_COMPILE=$(TOOLCHAIN_PREFIX)
 ifeq ($(XLEN), 32)
 sbi-mk += PLATFORM_RISCV_ISA=rv32ima PLATFORM_RISCV_XLEN=32
@@ -39,6 +40,11 @@ ifeq ($(XLEN), 32)
 isa-sim-co            = --prefix=$(RISCV) --with-isa=RV32IMA --with-priv=MSU
 else
 isa-sim-co            = --prefix=$(RISCV)
+endif
+
+IRQC					:= plic
+LINUX_VER				:= linux-6.1-rc4-aia
+
 endif
 
 # default make flags
@@ -77,36 +83,61 @@ $(CC): $(buildroot_defconfig) $(linux_defconfig) $(busybox_defconfig)
 
 all: $(CC) isa-sim
 
-$(RISCV)/vmlinux: $(buildroot_defconfig) $(linux_defconfig) $(busybox_defconfig) $(CC)
+# $(RISCV)/vmlinux: $(buildroot_defconfig) $(linux_defconfig) $(busybox_defconfig) $(CC)
+# 	mkdir -p $(RISCV)
+# 	make -C buildroot $(buildroot-mk)
+# 	cp buildroot/output/images/vmlinux $@
+
+$(RISCV)/toolchain: $(buildroot_defconfig) $(busybox_defconfig) 
+	make -C buildroot defconfig BR2_DEFCONFIG=../$(buildroot_defconfig)
+	make -C buildroot host-gcc-final $(buildroot-mk)
+
+$(RISCV)/rootfs.cpio: $(buildroot_defconfig) $(busybox_defconfig) $(RISCV)/toolchain
 	mkdir -p $(RISCV)
 	make -C buildroot $(buildroot-mk)
-	cp buildroot/output/images/vmlinux $@
+	cp $(ROOT)/buildroot/output/images/rootfs.cpio $@
+
+$(RISCV)/vmlinux: $(RISCV)/rootfs.cpio
+	cp $(linux_defconfig) $(ROOT)/local-linux/$(LINUX_VER)/arch/riscv/configs/defconfig
+	make -C $(ROOT)/local-linux/$(LINUX_VER) ARCH=riscv CROSS_COMPILE=riscv64-buildroot-linux-gnu- $(linux-mk) defconfig
+	make -C $(ROOT)/local-linux/$(LINUX_VER) ARCH=riscv CROSS_COMPILE=riscv64-buildroot-linux-gnu- $(linux-mk)
+	cp $(ROOT)/local-linux/$(LINUX_VER)/vmlinux $@
 
 $(RISCV)/Image: $(RISCV)/vmlinux
 	$(OBJCOPY) -O binary -R .note -R .comment -S $< $@
 
-# OpenSBI with u-boot as payload
-$(RISCV)/fw_payload.bin: $(RISCV)/Image
-	make -C opensbi FW_PAYLOAD_PATH=$< $(sbi-mk)
+$(RISCV)/alsaqr.dtb:
+	dtc -I dts $(ROOT)/dtbs/alsaqr-$(IRQC).dts -O dtb -o $(ROOT)/dtbs/bins/alsaqr-$(IRQC).dtb 
+	cp $(ROOT)/dtbs/bins/alsaqr-$(IRQC).dtb $@
+
+$(RISCV)/fw_payload.bin: $(RISCV)/Image $(RISCV)/alsaqr.dtb
+	make -C opensbi FW_PAYLOAD_PATH=$(RISCV)/Image $(sbi-mk) FW_FDT_PATH=$(RISCV)/alsaqr.dtb
+	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
+	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
 	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
 	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
 
 # specific recipes
 gcc: $(CC)
+toolchain: $(RISCV)/toolchain
+rootfs: $(RISCV)/rootfs.cpio
 vmlinux: $(RISCV)/vmlinux
-fw_payload.bin: $(RISCV)/fw_payload.bin
-
-images: $(CC) $(RISCV)/fw_payload.bin $(RISCV)/uImage
-
-alsaqr.dtb:
-	make -C opensbi $(sbi-mk) alsaqr.dts
-	dtc -I dts opensbi/platform/$(PLATFORM)/fdt_gen/alsaqr.dts -O dtb -o $@
+dtb: $(RISCV)/alsaqr.dtb
+local-linux-opensbi: $(RISCV)/fw_payload.bin
 
 clean:
-	rm -rf $(RISCV)/vmlinux cachetest/*.elf rootfs/cachetest.elf
-	rm -rf $(RISCV)/fw_payload.bin $(RISCV)/uImage $(RISCV)/Image.gz
-	make -C u-boot clean
-	make -C opensbi distclean
+	rm -rf $(RISCV)/vmlinux
+	rm -rf $(RISCV)/fw_payload.bin
+	rm -rf $(RISCV)/fw_payload.elf
+	rm -rf $(RISCV)/alsaqr.dtb
+	make -C opensbi clean
+
+clean-linux:
+	rm -rf $(RISCV)/Image
+	make -C $(ROOT)/local-linux/$(LINUX_VER) clean
+
+clean-buildroot:
+	make -C buildroot clean
 
 clean-all: clean
 	rm -rf $(RISCV) riscv-isa-sim/build riscv-tests/build
