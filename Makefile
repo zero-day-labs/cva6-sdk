@@ -85,57 +85,16 @@ $(RISCV)/vmlinux: $(buildroot_defconfig) $(linux_defconfig) $(busybox_defconfig)
 $(RISCV)/Image: $(RISCV)/vmlinux
 	$(OBJCOPY) -O binary -R .note -R .comment -S $< $@
 
-$(RISCV)/Image.gz: $(RISCV)/Image
-	gzip -9 -k --force $< > $@
-
-# U-Boot-compatible Linux image
-$(RISCV)/uImage: $(RISCV)/Image.gz $(MKIMAGE)
-	$(MKIMAGE) -A riscv -O linux -T kernel -a $(UIMAGE_LOAD_ADDRESS) -e $(UIMAGE_ENTRY_POINT) -C gzip -n "CV$(XLEN)A6Linux" -d $< $@
-
-$(RISCV)/u-boot.bin: u-boot/u-boot.bin
-	mkdir -p $(RISCV)
-	cp $< $@
-
-$(MKIMAGE) u-boot/u-boot.bin: $(CC)
-	make -C u-boot openhwgroup_cv$(XLEN)a6_genesysII_defconfig
-	make -C u-boot CROSS_COMPILE=$(TOOLCHAIN_PREFIX)
-
 # OpenSBI with u-boot as payload
 $(RISCV)/fw_payload.bin: $(RISCV)/Image
 	make -C opensbi FW_PAYLOAD_PATH=$< $(sbi-mk)
 	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
 	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
 
-# OpenSBI for Spike with Linux as payload
-$(RISCV)/spike_fw_payload.elf: PLATFORM=generic
-$(RISCV)/spike_fw_payload.elf: $(RISCV)/Image
-	make -C opensbi FW_PAYLOAD_PATH=$< $(sbi-mk)
-	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/spike_fw_payload.elf
-	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/spike_fw_payload.bin
-
-# need to run flash-sdcard with sudo -E, be careful to set the correct SDDEVICE
-# Number of sector required for FWPAYLOAD partition (each sector is 512B)
-FWPAYLOAD_SECTORSTART := 2048
-FWPAYLOAD_SECTORSIZE = $(shell ls -l --block-size=512 $(RISCV)/fw_payload.bin | cut -d " " -f5 )
-FWPAYLOAD_SECTOREND = $(shell echo $(FWPAYLOAD_SECTORSTART)+$(FWPAYLOAD_SECTORSIZE) | bc)
-SDDEVICE_PART1 = $(shell lsblk $(SDDEVICE) -no PATH | head -2 | tail -1)
-SDDEVICE_PART2 = $(shell lsblk $(SDDEVICE) -no PATH | head -3 | tail -1)
-# Always flash uImage at 512M, easier for u-boot boot command
-UIMAGE_SECTORSTART := 512M
-flash-sdcard: format-sd
-	dd if=$(RISCV)/fw_payload.bin of=$(SDDEVICE_PART1) status=progress oflag=sync bs=1M
-	dd if=$(RISCV)/uImage         of=$(SDDEVICE_PART2) status=progress oflag=sync bs=1M
-
-format-sd: $(SDDEVICE)
-	@test -n "$(SDDEVICE)" || (echo 'SDDEVICE must be set, Ex: make flash-sdcard SDDEVICE=/dev/sdc' && exit 1)
-	sgdisk --clear -g --new=1:$(FWPAYLOAD_SECTORSTART):$(FWPAYLOAD_SECTOREND) --new=2:$(UIMAGE_SECTORSTART):0 --typecode=1:3000 --typecode=2:8300 $(SDDEVICE)
-
 # specific recipes
 gcc: $(CC)
 vmlinux: $(RISCV)/vmlinux
 fw_payload.bin: $(RISCV)/fw_payload.bin
-uImage: $(RISCV)/uImage
-spike_payload: $(RISCV)/spike_fw_payload.elf
 
 images: $(CC) $(RISCV)/fw_payload.bin $(RISCV)/uImage
 
