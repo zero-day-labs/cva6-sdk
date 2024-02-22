@@ -43,7 +43,7 @@ isa-sim-co            = --prefix=$(RISCV)
 endif
 
 IRQC					:= plic
-GUEST					:= baremetal
+GUEST					:=
 BAO_CONFIG				:= $(PLATFORM_RAW)-$(GUEST)-$(IRQC)
 LINUX_VER				:= linux-6.1-rc4-aia
 
@@ -159,8 +159,14 @@ vmlinux: $(RISCV)/vmlinux
 dtb: $(RISCV)/alsaqr.dtb
 local-linux-opensbi: $(RISCV)/fw_payload.bin
 baremetal: $(RISCV)/fw_payload_baremetal.bin
-bao-linux: $(RISCV)/alsaqr.dtb $(RISCV)/linux_wrapper $(RISCV)/bao.bin $(RISCV)/bao_fw_payload.bin
-bao-baremetal: $(RISCV)/baremetal.bin $(RISCV)/alsaqr.dtb $(RISCV)/bao.bin $(RISCV)/bao_fw_payload.bin
+bao:
+ifeq ($(GUEST),baremetal)
+	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/baremetal.bin $(RISCV)/alsaqr.dtb $(RISCV)/bao.bin $(RISCV)/bao_fw_payload.bin
+else ifeq ($(GUEST),linux)
+	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/alsaqr.dtb $(RISCV)/linux_wrapper $(RISCV)/bao.bin $(RISCV)/bao_fw_payload.bin
+else
+	 $(error GUEST variable is not set to valid value)
+endif
 
 clean:
 	rm -rf $(RISCV)/vmlinux
