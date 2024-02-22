@@ -13,8 +13,17 @@ MKIMAGE     := u-boot/tools/mkimage
 
 NR_CORES := $(shell nproc)
 
+##################################################################
+##																##
+##			User Macros... Change it here or in the terminal    ##
+##																##
+##################################################################
+IRQC					:= plic
+GUEST					:=
+LINUX_VER_DEF			:= linux-6.1-rc4-aia
+PLATFORM_RAW 			:= alsaqr
+
 # SBI options
-PLATFORM_RAW := alsaqr
 PLATFORM := fpga/$(PLATFORM_RAW)
 sbi-mk = PLATFORM=$(PLATFORM) CROSS_COMPILE=$(TOOLCHAIN_PREFIX)
 ifeq ($(XLEN), 32)
@@ -42,10 +51,26 @@ else
 isa-sim-co            = --prefix=$(RISCV)
 endif
 
-IRQC					:= plic
-GUEST					:=
 BAO_CONFIG				:= $(PLATFORM_RAW)-$(GUEST)-$(IRQC)
-LINUX_VER				:= linux-6.1-rc4-aia
+#####################################################################
+##																   ##
+##		Dirty way of doing this :( But I really want to make       ## 
+##      it easier for the end user of this Makefile                ##
+##																   ##
+#####################################################################
+# if GUEST is defined (i.e., we will run bao rule) set the openSBI payload to bao
+ifneq ($(GUEST),)
+	LINUX_VER  := $(LINUX_VER_DEF)
+	FW_PAYLOAD := $(RISCV)/bao.bin
+else
+# if LINUX_VER is defined (i.e., we will run linux rule) set openSBI payload to linux otherwise, use baremetal
+ifneq ($(LINUX_VER),)
+	FW_PAYLOAD := $(RISCV)/Image
+else
+	FW_PAYLOAD := $(RISCV)/baremetal.bin
+endif
+endif
+
 
 ifeq ($(IRQC), plic)
 IRQC_BAO				:= PLIC
@@ -101,7 +126,7 @@ $(RISCV)/toolchain: $(buildroot_defconfig) $(busybox_defconfig)
 	make -C buildroot defconfig BR2_DEFCONFIG=../$(buildroot_defconfig)
 	make -C buildroot host-gcc-final $(buildroot-mk)
 
-$(RISCV)/rootfs.cpio: $(buildroot_defconfig) $(busybox_defconfig) $(RISCV)/toolchain
+$(RISCV)/rootfs.cpio: $(buildroot_defconfig) $(busybox_defconfig)
 	mkdir -p $(RISCV)
 	make -C buildroot $(buildroot-mk)
 	cp $(ROOT)/buildroot/output/images/rootfs.cpio $@
@@ -128,16 +153,6 @@ $(RISCV)/alsaqr-minimal.dtb:
 	dtc -I dts $(ROOT)/dtbs/alsaqr-linux-guest-$(IRQC).dts -O dtb -o $(ROOT)/dtbs/bins/alsaqr-linux-guest-$(IRQC).dtb 
 	cp $(ROOT)/dtbs/bins/alsaqr-linux-guest-$(IRQC).dtb $@
 
-$(RISCV)/fw_payload_baremetal.bin: $(RISCV)/baremetal.bin $(RISCV)/alsaqr.dtb
-	make -C opensbi FW_PAYLOAD_PATH=$(RISCV)/baremetal.bin $(sbi-mk) FW_FDT_PATH=$(RISCV)/alsaqr.dtb
-	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
-	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
-
-$(RISCV)/fw_payload.bin: $(RISCV)/Image $(RISCV)/alsaqr.dtb
-	make -C opensbi FW_PAYLOAD_PATH=$(RISCV)/Image $(sbi-mk) FW_FDT_PATH=$(RISCV)/alsaqr.dtb
-	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
-	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
-
 $(RISCV)/linux_wrapper: $(RISCV)/Image $(RISCV)/alsaqr-minimal.dtb
 	make -C linux-wrapper CROSS_COMPILE=riscv64-unknown-elf- ARCH=rv64 IMAGE=$< DTB=$(RISCV)/alsaqr-minimal.dtb TARGET=$@
 
@@ -146,30 +161,29 @@ $(RISCV)/bao.bin:
 	cp bao-hypervisor/bin/$(PLATFORM_RAW)/$(BAO_CONFIG)/bao.elf $(RISCV)/bao.elf
 	cp bao-hypervisor/bin/$(PLATFORM_RAW)/$(BAO_CONFIG)/bao.bin $(RISCV)/bao.bin
 
-$(RISCV)/bao_fw_payload.bin: $(RISCV)/bao.bin $(RISCV)/alsaqr.dtb
-	make -C opensbi FW_PAYLOAD_PATH=$(RISCV)/bao.bin $(sbi-mk) FW_FDT_PATH=$(RISCV)/alsaqr.dtb
+$(RISCV)/fw_payload.bin: $(RISCV)/alsaqr.dtb
+	make -C opensbi FW_PAYLOAD_PATH=$(FW_PAYLOAD) $(sbi-mk) FW_FDT_PATH=$(RISCV)/alsaqr.dtb
 	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
 	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
 
 # specific recipes
 gcc: $(CC)
 toolchain: $(RISCV)/toolchain
-rootfs: $(RISCV)/rootfs.cpio
+rootfs: $(RISCV)/toolchain $(RISCV)/rootfs.cpio
 vmlinux: $(RISCV)/vmlinux
 dtb: $(RISCV)/alsaqr.dtb
-local-linux-opensbi: $(RISCV)/fw_payload.bin
-baremetal: $(RISCV)/fw_payload_baremetal.bin
+linux: $(RISCV)/Image $(RISCV)/fw_payload.bin
+baremetal: $(RISCV)/baremetal.bin $(RISCV)/fw_payload.bin
 bao:
 ifeq ($(GUEST),baremetal)
-	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/baremetal.bin $(RISCV)/alsaqr.dtb $(RISCV)/bao.bin $(RISCV)/bao_fw_payload.bin
+	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/baremetal.bin $(RISCV)/alsaqr.dtb $(RISCV)/bao.bin $(RISCV)/fw_payload.bin
 else ifeq ($(GUEST),linux)
-	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/alsaqr.dtb $(RISCV)/linux_wrapper $(RISCV)/bao.bin $(RISCV)/bao_fw_payload.bin
+	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/alsaqr.dtb $(RISCV)/linux_wrapper $(RISCV)/bao.bin $(RISCV)/fw_payload.bin
 else
 	 $(error GUEST variable is not set to valid value)
 endif
 
 clean:
-	rm -rf $(RISCV)/vmlinux
 	rm -rf $(RISCV)/fw_payload.bin
 	rm -rf $(RISCV)/fw_payload.elf
 	rm -rf $(RISCV)/alsaqr.dtb
@@ -193,11 +207,12 @@ clean-linux:
 	rm -rf $(RISCV)/Image
 	make -C $(ROOT)/local-linux/$(LINUX_VER) clean
 
-clean-buildroot:
-	make -C buildroot clean
-
 clean-all: clean
-	rm -rf $(RISCV) riscv-isa-sim/build riscv-tests/build
+	rm -rf $(RISCV)/rootfs.cpio
+	rm -rf $(RISCV)/vmlinux
+	rm -rf $(RISCV)/Image
+
+clean-buildroot: clean-all
 	make -C buildroot clean
 
 .PHONY: gcc vmlinux images help fw_payload.bin uImage alsaqr.dtb
@@ -206,19 +221,50 @@ help:
 	@echo "usage: $(MAKE) [tool/img] ..."
 	@echo ""
 	@echo "install compiler with"
-	@echo "    make gcc"
+	@echo "    make gcc or make toolchain"
 	@echo ""
-	@echo "install [tool] with compiler"
-	@echo "    where tool can be any one of:"
-	@echo "        gcc isa-sim tests"
+	@echo "build root file system for linux"
+	@echo "    make rootfs"
 	@echo ""
-	@echo "build linux images for cva6"
-	@echo "        make images"
-	@echo "    for specific artefact"
-	@echo "        make [vmlinux|uImage|fw_payload.bin]"
+	@echo "build linux images for [alsaqr/ariane]"
+	@echo "    make linux LINUX_VER=<linux-version> {options}"
+	@echo "       where options can be:"
+	@echo "       PLATFORM_RAW=[alsaqr(default)/ariane]"
+	@echo "       IRQC=[plic(default)/aplic/aia]"
+	@echo ""
+	@echo "build baremetal images for [alsaqr/ariane]"
+	@echo "    make baremetal {options}"
+	@echo "       where options can be:"
+	@echo "       PLATFORM_RAW=[alsaqr(default)/ariane]"
+	@echo "       IRQC=[plic(default)/aplic/aia]"
+	@echo "    WARNING 0: We must also define the IRQC in baremetal source code..."
+	@echo "               arch/riscv/inc/irq.h"
+	@echo "               We will update it in a near future to do everything from here"
+	@echo ""
+	@echo "build bao images for [alsaqr/ariane]"
+	@echo "    make bao GUEST=[baremetal/linux] {options}"
+	@echo "       where options can be:"
+	@echo "       PLATFORM_RAW=[alsaqr(default)/ariane]"
+	@echo "       IRQC=[plic(default)/aplic/aia]"
+	@echo "    WARNING 1: The config file in bao folder should follow the rule:"
+	@echo "               <platform>-<guest>-<irqc>"
+	@echo "               We will update it in a near future to do everything from here"
+	@echo "    WANING 2: If the guest is a baremetal see WARING 0"
 	@echo ""
 	@echo "There are two clean targets:"
-	@echo "    Clean only build object"
+	@echo "    Clean only build object but not the Linux image (not really necessary once it is built...)"
 	@echo "        make clean"
-	@echo "    Clean everything (including toolchain etc)"
+	@echo "    Clean everything (including Linux)"
 	@echo "        make clean-all"
+	@echo "    Clean REALLY everything (including toolchain etc)"
+	@echo "        make clean-buildroot"
+	@echo ""
+	@echo "==========================================================="
+	@echo "==                    EXAMPLES                           =="
+	@echo "==========================================================="
+	@echo "==    make baremmetal                                    =="
+	@echo "==    make linux LINUX_VER=linux-6.1-rc4-aia IRQC=aia    =="
+	@echo "==    make linux LINUX_VER=linux-6.1-rc4-aia IRQC=plic   =="
+	@echo "==    make bao GUEST=baremetal                           =="
+	@echo "==    make bao GUEST=linux IRQC=aplic                    =="
+	@echo "==========================================================="
