@@ -43,11 +43,16 @@ isa-sim-co            = --prefix=$(RISCV)
 endif
 
 IRQC					:= plic
-BAO_CONFIG				:= alsaqr-linux-$(IRQC)
+GUEST					:= baremetal
+BAO_CONFIG				:= $(PLATFORM_RAW)-$(GUEST)-$(IRQC)
 LINUX_VER				:= linux-6.1-rc4-aia
 
 ifeq ($(IRQC), plic)
 IRQC_BAO				:= PLIC
+else ifeq ($(IRQC), aplic)
+IRQC_BAO				:= APLIC
+else ifeq ($(IRQC), aia)
+IRQC_BAO				:= AIA
 endif
 
 # default make flags
@@ -110,6 +115,11 @@ $(RISCV)/vmlinux: $(RISCV)/rootfs.cpio
 $(RISCV)/Image: $(RISCV)/vmlinux
 	$(OBJCOPY) -O binary -R .note -R .comment -S $< $@
 
+$(RISCV)/baremetal.bin:
+	make -C $(ROOT)/bao-baremetal-guest PLATFORM=$(PLATFORM_RAW)
+	cp $(ROOT)/bao-baremetal-guest/build/$(PLATFORM_RAW)/baremetal.bin $@
+	cp $(ROOT)/bao-baremetal-guest/build/$(PLATFORM_RAW)/baremetal.elf $(RISCV)/baremetal.elf
+
 $(RISCV)/alsaqr.dtb:
 	dtc -I dts $(ROOT)/dtbs/alsaqr-$(IRQC).dts -O dtb -o $(ROOT)/dtbs/bins/alsaqr-$(IRQC).dtb 
 	cp $(ROOT)/dtbs/bins/alsaqr-$(IRQC).dtb $@
@@ -117,6 +127,11 @@ $(RISCV)/alsaqr.dtb:
 $(RISCV)/alsaqr-minimal.dtb:
 	dtc -I dts $(ROOT)/dtbs/alsaqr-linux-guest-$(IRQC).dts -O dtb -o $(ROOT)/dtbs/bins/alsaqr-linux-guest-$(IRQC).dtb 
 	cp $(ROOT)/dtbs/bins/alsaqr-linux-guest-$(IRQC).dtb $@
+
+$(RISCV)/fw_payload_baremetal.bin: $(RISCV)/baremetal.bin $(RISCV)/alsaqr.dtb
+	make -C opensbi FW_PAYLOAD_PATH=$(RISCV)/baremetal.bin $(sbi-mk) FW_FDT_PATH=$(RISCV)/alsaqr.dtb
+	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
+	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
 
 $(RISCV)/fw_payload.bin: $(RISCV)/Image $(RISCV)/alsaqr.dtb
 	make -C opensbi FW_PAYLOAD_PATH=$(RISCV)/Image $(sbi-mk) FW_FDT_PATH=$(RISCV)/alsaqr.dtb
@@ -126,7 +141,7 @@ $(RISCV)/fw_payload.bin: $(RISCV)/Image $(RISCV)/alsaqr.dtb
 $(RISCV)/linux_wrapper: $(RISCV)/Image $(RISCV)/alsaqr-minimal.dtb
 	make -C linux-wrapper CROSS_COMPILE=riscv64-unknown-elf- ARCH=rv64 IMAGE=$< DTB=$(RISCV)/alsaqr-minimal.dtb TARGET=$@
 
-$(RISCV)/bao.bin: $(RISCV)/linux_wrapper
+$(RISCV)/bao.bin:
 	make -C bao-hypervisor CONFIG=$(BAO_CONFIG) PLATFORM=$(PLATFORM_RAW) CROSS_COMPILE=riscv64-unknown-elf- IRQC=$(IRQC_BAO)
 	cp bao-hypervisor/bin/$(PLATFORM_RAW)/$(BAO_CONFIG)/bao.elf $(RISCV)/bao.elf
 	cp bao-hypervisor/bin/$(PLATFORM_RAW)/$(BAO_CONFIG)/bao.bin $(RISCV)/bao.bin
@@ -143,7 +158,9 @@ rootfs: $(RISCV)/rootfs.cpio
 vmlinux: $(RISCV)/vmlinux
 dtb: $(RISCV)/alsaqr.dtb
 local-linux-opensbi: $(RISCV)/fw_payload.bin
-bao-linux: $(RISCV)/bao_fw_payload.bin
+baremetal: $(RISCV)/fw_payload_baremetal.bin
+bao-linux: $(RISCV)/alsaqr.dtb $(RISCV)/linux_wrapper $(RISCV)/bao.bin $(RISCV)/bao_fw_payload.bin
+bao-baremetal: $(RISCV)/baremetal.bin $(RISCV)/alsaqr.dtb $(RISCV)/bao.bin $(RISCV)/bao_fw_payload.bin
 
 clean:
 	rm -rf $(RISCV)/vmlinux
@@ -151,10 +168,20 @@ clean:
 	rm -rf $(RISCV)/fw_payload.elf
 	rm -rf $(RISCV)/alsaqr.dtb
 	rm -rf $(RISCV)/alsaqr-minimal.dtb
-	rm -rf $(RISCV)/linux_wrapper
+	rm -rf $(RISCV)/linux_wrapper.bin
+	rm -rf $(RISCV)/linux_wrapper.elf
 	rm -rf $(RISCV)/bao.bin
+	rm -rf $(RISCV)/bao.elf
+	rm -rf $(RISCV)/baremetal.bin
+	rm -rf $(RISCV)/baremetal.elf
 	make -C opensbi clean
 	make -C bao-hypervisor clean
+	make -C $(ROOT)/bao-baremetal-guest clean
+
+clean-baremetal:
+	rm -rf $(RISCV)/baremetal.bin
+	rm -rf $(RISCV)/baremetal.elf
+	make -C $(ROOT)/bao-baremetal-guest clean
 
 clean-linux:
 	rm -rf $(RISCV)/Image
