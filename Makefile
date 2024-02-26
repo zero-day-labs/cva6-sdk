@@ -208,6 +208,7 @@ clean-linux:
 	make -C $(ROOT)/local-linux/$(LINUX_VER) clean
 
 clean-all: clean
+	rm -rf $(ROOT)/dtbs/bins/*
 	rm -rf $(RISCV)/rootfs.cpio
 	rm -rf $(RISCV)/vmlinux
 	rm -rf $(RISCV)/Image
