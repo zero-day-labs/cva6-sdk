@@ -167,6 +167,25 @@ $(RISCV)/fw_payload.bin: $(RISCV)/alsaqr.dtb
 	cp $(OPENSBI_DIR)/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
 	cp $(OPENSBI_DIR)/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
 
+$(RISCV)/baremetal_qemu.bin:
+	make -C $(ROOT)/bao-baremetal-guest PLATFORM=qemu-riscv64-virt
+	cp $(ROOT)/bao-baremetal-guest/build/qemu-riscv64-virt/baremetal.bin $(RISCV)/baremetal.bin
+	cp $(ROOT)/bao-baremetal-guest/build/qemu-riscv64-virt/baremetal.elf $(RISCV)/baremetal.elf
+
+$(RISCV)/fw_payload_qemu.bin:
+	make -C $(OPENSBI_DIR) FW_PAYLOAD_PATH=$(FW_PAYLOAD) CROSS_COMPILE=$(TOOLCHAIN_PREFIX) PLATFORM=generic
+	cp $(OPENSBI_DIR)/build/platform/generic/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
+	cp $(OPENSBI_DIR)/build/platform/generic/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
+
+RUN_PLIC:
+	qemu-system-riscv64 -nographic -M virt -cpu rv64 -m 4G -smp 4 -serial pty -bios $(RISCV)/fw_payload.elf -device virtio-serial-device -chardev pty,id=serial3 -device virtconsole,chardev=serial3 -S -gdb tcp:localhost:9000
+
+RUN_APLIC:
+	qemu-system-riscv64 -nographic -M virt -machine aia=aplic -cpu rv64 -m 4G -smp 4 -serial pty -bios $(RISCV)/fw_payload.elf -device virtio-serial-device -chardev pty,id=serial3 -device virtconsole,chardev=serial3 -S -gdb tcp:localhost:9000
+#-machine dumpdtb=qemu.dtb
+RUN_IMSIC:
+	qemu-system-riscv64 -nographic -M virt -machine dumpdtb=qemu.dtb -machine aia=aplic-imsic,aia_guests=$(AIA_GUESTS) -cpu rv64 -m 4G -smp $(N_HARTS) -serial pty -bios $(RISCV)/fw_payload.elf -device virtio-serial-device -chardev pty,id=serial3 -device virtconsole,chardev=serial3 -S -gdb tcp:localhost:9000
+
 
 # specific recipes
 gcc: $(CC)
@@ -176,6 +195,7 @@ vmlinux: $(RISCV)/vmlinux
 dtb: $(RISCV)/alsaqr.dtb
 linux: $(RISCV)/Image $(RISCV)/fw_payload.bin
 baremetal: $(RISCV)/baremetal.bin $(RISCV)/fw_payload.bin
+baremetal-qemu: $(RISCV)/baremetal_qemu.bin $(RISCV)/fw_payload_qemu.bin
 bao:
 ifeq ($(GUEST),baremetal)
 	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/baremetal.bin $(RISCV)/alsaqr.dtb $(RISCV)/bao.bin $(RISCV)/fw_payload.bin
@@ -184,6 +204,9 @@ else ifeq ($(GUEST),linux)
 else
 	 $(error GUEST variable is not set to valid value)
 endif
+run-plic:RUN_PLIC
+run-aplic:RUN_APLIC
+run-imsic:RUN_IMSIC
 
 clean:
 	rm -rf $(RISCV)/fw_payload.bin
@@ -198,7 +221,7 @@ clean:
 	rm -rf $(RISCV)/baremetal.elf
 	make -C $(OPENSBI_DIR) clean
 	make -C bao-hypervisor clean
-	make -C $(ROOT)/bao-baremetal-guest clean
+	make -C bao-baremetal-guest clean
 
 clean-baremetal:
 	rm -rf $(RISCV)/baremetal.bin
