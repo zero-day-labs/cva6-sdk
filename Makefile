@@ -22,6 +22,7 @@ IRQC					:= plic
 GUEST					:=
 LINUX_VER_DEF			:= linux-6.1-rc4-aia
 PLATFORM_RAW 			:= alsaqr
+OPENSBI_DIR				:= opensbi
 
 # SBI options
 PLATFORM := fpga/$(PLATFORM_RAW)
@@ -162,9 +163,10 @@ $(RISCV)/bao.bin:
 	cp bao-hypervisor/bin/$(PLATFORM_RAW)/$(BAO_CONFIG)/bao.bin $(RISCV)/bao.bin
 
 $(RISCV)/fw_payload.bin: $(RISCV)/alsaqr.dtb
-	make -C opensbi FW_PAYLOAD_PATH=$(FW_PAYLOAD) $(sbi-mk) FW_FDT_PATH=$(RISCV)/alsaqr.dtb
-	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
-	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
+	make -C $(OPENSBI_DIR) FW_PAYLOAD_PATH=$(FW_PAYLOAD) $(sbi-mk) FW_FDT_PATH=$(RISCV)/alsaqr.dtb TARGET_FREQ=40000000 NUM_HARTS=2
+	cp $(OPENSBI_DIR)/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
+	cp $(OPENSBI_DIR)/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
+
 
 # specific recipes
 gcc: $(CC)
@@ -194,7 +196,7 @@ clean:
 	rm -rf $(RISCV)/bao.elf
 	rm -rf $(RISCV)/baremetal.bin
 	rm -rf $(RISCV)/baremetal.elf
-	make -C opensbi clean
+	make -C $(OPENSBI_DIR) clean
 	make -C bao-hypervisor clean
 	make -C $(ROOT)/bao-baremetal-guest clean
 

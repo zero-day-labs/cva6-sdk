@@ -24,3 +24,9 @@
 [submodule "bao-baremetal-guest"]
 	path = bao-baremetal-guest
 	url = https://github.com/D3boker1/bao-baremetal-guest.git
+[submodule "opensbi_v2"]
+	path = opensbi_v2
+	url = git@github.com:AlSaqr-platform/opensbi.git
+[submodule "opensbi_v3"]
+	path = opensbi_v3
+	url = git@github.com:riscv-software-src/opensbi.git
