@@ -25,7 +25,6 @@
     #size-cells = <0>;
     timebase-frequency = <20000000>;
     CPU0: cpu@0 {
-      phandle = <0x01>;
       device_type = "cpu";
       status = "okay";
       compatible = "eth,ariane", "riscv";
@@ -35,7 +34,6 @@
       tlb-split;
       reg = <0>;
       CPU0_intc: interrupt-controller {
-        phandle = <0x02>;
         #address-cells = <1>;
         #interrupt-cells = <1>;
         interrupt-controller;
@@ -43,7 +41,6 @@
       };
     };
     CPU1: cpu@1 {
-      phandle = <0x03>;
       device_type = "cpu";
       status = "okay";
       compatible = "eth,ariane", "riscv";
@@ -53,7 +50,6 @@
       tlb-split;
       reg = <1>;
       CPU1_intc: interrupt-controller {
-        phandle = <0x04>;
         #address-cells = <1>;
         #interrupt-cells = <1>;
         interrupt-controller;
@@ -67,6 +63,12 @@
     #size-cells = <2>;
     compatible = "eth,ariane-bare-soc", "simple-bus";
     ranges;
+    clint@2000000 {
+      compatible = "riscv,clint0";
+      interrupts-extended = <&CPU0_intc 3 &CPU0_intc 7>  , <&CPU1_intc 3 &CPU1_intc 7>;
+      reg = <0x0 0x2000000 0x0 0xc0000>;
+      reg-names = "control";
+    };
 
     APLICS: interrupt-controller@d000000 {
 			phandle = <0x06>;
@@ -91,8 +93,8 @@
 		};
 
 		IMSICS: interrupt-controller@28000000 {
-			phandle = <0x08>;
-      riscv,guest-index-bits = <1>;
+			phandle = <0x04>;
+            riscv,guest-index-bits = <1>;
 			riscv,ipi-id = <0x01>;
 			riscv,num-ids = <255>;
 			reg = <0x00 0x28000000 0x00 0x4000>;
@@ -104,7 +106,7 @@
 		};
 
 		IMSICM: interrupt-controller@24000000 {
-			phandle = <0x07>;
+			phandle = <0x03>;
 			riscv,ipi-id = <0x01>;
 			riscv,num-ids = <255>;
 			reg = <0x00 0x24000000 0x00 0x2000>;
@@ -130,6 +132,13 @@
       interrupts = <2 0x4>;
       reg-shift = <2>; // regs are spaced on 32 bit boundary
       reg-io-width = <4>; // only 32-bit access are supported
+    };
+    timer@18000000 {
+      compatible = "pulp,apb_timer";
+      interrupts = <0x00000004 0x0 0x00000005 0x0 0x00000006 0x0 0x00000007 0x0>;
+      reg = <0x00000000 0x18000000 0x00000000 0x00001000>;
+      interrupt-parent = <&APLICS>;
+      reg-names = "control";
     };
   };
 };
