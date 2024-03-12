@@ -1,17 +1,6 @@
-[submodule "riscv-tests"]
-	path = riscv-tests
-	url = https://github.com/riscv/riscv-tests.git
-	branch = master
-[submodule "riscv-isa-sim"]
-	path = riscv-isa-sim
-	url = https://github.com/riscv/riscv-isa-sim.git
-	branch = master
 [submodule "buildroot"]
 	path = buildroot
 	url = https://github.com/buildroot/buildroot.git
-[submodule "u-boot"]
-	path = u-boot
-	url = https://github.com/openhwgroup/u-boot/
 [submodule "opensbi"]
 	path = opensbi
 	url = https://github.com/D3boker1/opensbi.git
