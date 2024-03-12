@@ -95,34 +95,6 @@ busybox_defconfig = configs/busybox$(XLEN).config
 install-dir:
 	mkdir -p $(RISCV)
 
-isa-sim: install-dir $(CC) 
-	mkdir -p riscv-isa-sim/build
-	cd riscv-isa-sim/build;\
-	../configure $(isa-sim-co);\
-	make $(isa-sim-mk);\
-	make install;\
-	cd $(ROOT)
-
-tests: install-dir $(CC)
-	mkdir -p riscv-tests/build
-	cd riscv-tests/build;\
-	autoconf;\
-	../configure $(tests-co);\
-	make $(tests-mk);\
-	make install;\
-	cd $(ROOT)
-
-$(CC): $(buildroot_defconfig) $(linux_defconfig) $(busybox_defconfig)
-	make -C buildroot defconfig BR2_DEFCONFIG=../$(buildroot_defconfig)
-	make -C buildroot host-gcc-final $(buildroot-mk)
-
-all: $(CC) isa-sim
-
-# $(RISCV)/vmlinux: $(buildroot_defconfig) $(linux_defconfig) $(busybox_defconfig) $(CC)
-# 	mkdir -p $(RISCV)
-# 	make -C buildroot $(buildroot-mk)
-# 	cp buildroot/output/images/vmlinux $@
-
 $(RISCV)/toolchain: $(buildroot_defconfig) $(busybox_defconfig) 
 	make -C buildroot defconfig BR2_DEFCONFIG=../$(buildroot_defconfig)
 	make -C buildroot host-gcc-final $(buildroot-mk)
