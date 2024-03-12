@@ -164,15 +164,15 @@ gcc: $(CC)
 toolchain: $(RISCV)/toolchain
 rootfs: $(RISCV)/toolchain $(RISCV)/rootfs.cpio
 vmlinux: $(RISCV)/vmlinux
-dtb: $(RISCV)/alsaqr.dtb
+dtb: $(RISCV)/$(PLATFORM_RAW).dtb
 linux: $(RISCV)/Image $(RISCV)/fw_payload.bin
 baremetal: $(RISCV)/baremetal.bin $(RISCV)/fw_payload.bin
 baremetal-qemu: $(RISCV)/baremetal_qemu.bin $(RISCV)/fw_payload_qemu.bin
 bao:
 ifeq ($(GUEST),baremetal)
-	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/baremetal.bin $(RISCV)/alsaqr.dtb $(RISCV)/bao.bin $(RISCV)/fw_payload.bin
+	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/baremetal.bin $(RISCV)/$(PLATFORM_RAW).dtb $(RISCV)/bao.bin $(RISCV)/fw_payload.bin
 else ifeq ($(GUEST),linux)
-	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/alsaqr.dtb $(RISCV)/linux_wrapper $(RISCV)/bao.bin $(RISCV)/fw_payload.bin
+	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/$(PLATFORM_RAW).dtb $(RISCV)/linux_wrapper $(RISCV)/bao.bin $(RISCV)/fw_payload.bin
 else
 	 $(error GUEST variable is not set to valid value)
 endif
