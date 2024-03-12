@@ -146,13 +146,13 @@ $(RISCV)/baremetal.bin:
 	cp $(ROOT)/bao-baremetal-guest/build/$(PLATFORM_RAW)/baremetal.bin $@
 	cp $(ROOT)/bao-baremetal-guest/build/$(PLATFORM_RAW)/baremetal.elf $(RISCV)/baremetal.elf
 
-$(RISCV)/alsaqr.dtb:
-	dtc -I dts $(ROOT)/dtbs/alsaqr-$(IRQC).dts -O dtb -o $(ROOT)/dtbs/bins/alsaqr-$(IRQC).dtb 
-	cp $(ROOT)/dtbs/bins/alsaqr-$(IRQC).dtb $@
+$(RISCV)/$(PLATFORM_RAW).dtb:
+	dtc -I dts $(ROOT)/dtbs/$(PLATFORM_RAW)-$(IRQC).dts -O dtb -o $(ROOT)/dtbs/bins/$(PLATFORM_RAW)-$(IRQC).dtb 
+	cp $(ROOT)/dtbs/bins/$(PLATFORM_RAW)-$(IRQC).dtb $@
 
-$(RISCV)/alsaqr-minimal.dtb:
-	dtc -I dts $(ROOT)/dtbs/alsaqr-linux-guest-$(IRQC).dts -O dtb -o $(ROOT)/dtbs/bins/alsaqr-linux-guest-$(IRQC).dtb 
-	cp $(ROOT)/dtbs/bins/alsaqr-linux-guest-$(IRQC).dtb $@
+$(RISCV)/$(PLATFORM_RAW)-minimal.dtb:
+	dtc -I dts $(ROOT)/dtbs/$(PLATFORM_RAW)-linux-guest-$(IRQC).dts -O dtb -o $(ROOT)/dtbs/bins/$(PLATFORM_RAW)-linux-guest-$(IRQC).dtb 
+	cp $(ROOT)/dtbs/bins/$(PLATFORM_RAW)-linux-guest-$(IRQC).dtb $@
 
 $(RISCV)/linux_wrapper: $(RISCV)/Image $(RISCV)/alsaqr-minimal.dtb
 	make -C linux-wrapper CROSS_COMPILE=riscv64-unknown-elf- ARCH=rv64 IMAGE=$< DTB=$(RISCV)/alsaqr-minimal.dtb TARGET=$@
@@ -162,8 +162,8 @@ $(RISCV)/bao.bin:
 	cp bao-hypervisor/bin/$(PLATFORM_RAW)/$(BAO_CONFIG)/bao.elf $(RISCV)/bao.elf
 	cp bao-hypervisor/bin/$(PLATFORM_RAW)/$(BAO_CONFIG)/bao.bin $(RISCV)/bao.bin
 
-$(RISCV)/fw_payload.bin: $(RISCV)/alsaqr.dtb
-	make -C $(OPENSBI_DIR) FW_PAYLOAD_PATH=$(FW_PAYLOAD) $(sbi-mk) FW_FDT_PATH=$(RISCV)/alsaqr.dtb TARGET_FREQ=40000000 NUM_HARTS=2
+$(RISCV)/fw_payload.bin: $(RISCV)/$(PLATFORM_RAW).dtb
+	make -C $(OPENSBI_DIR) FW_PAYLOAD_PATH=$(FW_PAYLOAD) $(sbi-mk) FW_FDT_PATH=$(RISCV)/$(PLATFORM_RAW).dtb TARGET_FREQ=40000000 NUM_HARTS=2
 	cp $(OPENSBI_DIR)/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
 	cp $(OPENSBI_DIR)/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
 
