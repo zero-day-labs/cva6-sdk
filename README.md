@@ -179,27 +179,26 @@ This will generate Linux's image, containing also the root file system, at `inst
 This image will be opensbi's payload. To generate the full image:
 
 ```
-make TARGET_FREQ=<frequency-of-the-bitstream> NUM_HARTS=<number-of-harts> fw_payload.bin
+export TARGET_FREQ=<frequency-of-the-bitstream> NUM_HARTS=<number-of-harts>
+make fw_payload.bin
 ```
 
-At this point, we'll have `fw_payload.elf` inside the `install64` folder, which is the desider binary.
+The default frequency is 40MHz, for the quad-core it has been reduced to 20MHz.
 
-It is only left to generate the bitstream:
+At this point, we'll have `fw_payload.elf` inside the `install64` folder, which is the desidered binary.
+
+It is only left to generate the dtb:
 
 ```
-make TARGET_FREQ=<frequency-of-the-bitstream> NUM_HARTS=<number-of-harts> alsaqr.dtb
+make alsaqr.dtb
 ```
 
 Please note that you need to load it at the address defined in openSBI (`FW_PAYLOAD_FDT_ADDR`
 in the `platform/fpga/alsaqr/objects.mk` file).
 
-This is achieved by the `load_image alsaqr.dtb 0x81800000` inside openocd's config.
+This is achieved by the `load_image alsaqr.dtb 0x81800000` inside `scripts/openocd_smp.cfg` config:
 
 ```
-init
-reset halt
-
-halt
 load_image alsaqr.dtb 0x81800000
 ```
 
@@ -221,9 +220,29 @@ endif
 
 To speed up the code loading, try to increase the adapter speed inside the openocd cfg.
 
-Last bitstream tested from [this](https://github.com/AlSaqr-platform/he-soc/tree/2f670143529d349ec6d8f385aac8b8313d323d86) commit.
+### Quad-core linux boot
 
-## Boot on the HyperRAM
+Last bitstream tested from [this](https://github.com/AlSaqr-platform/he-soc/tree/8fd2ea317574b80f90267334bcd26e13caf46129) commit.
+
+First, install Openocd [as mentioned in the he-soc repository](https://github.com/AlSaqr-platform/he-soc/tree/8fd2ea317574b80f90267334bcd26e13caf46129/hardware/fpga#install-openocd),
+and [connect the Olimex](https://github.com/AlSaqr-platform/he-soc/blob/8fd2ea317574b80f90267334bcd26e13caf46129/hardware/fpga/openocd/CVA6_jtag_connection.png).
+
+At this point, load the bitstream. Then, halt the cores:
+
+```
+sudo <path-to-openocd-binary> -f scripts/openocd_smp.cfg
+```
+
+With a second terminal, leverage `gdb` to load the core and start the execution:
+
+```
+riscv64-unknown-elf-gdb -x scripts/launch_4_core
+```
+
+With a third terminal, open the screen, with baudrate 9600. Once the load completes, you should start seeing OpenSBI and Linux boot.
+
+
+### Boot on the HyperRAM
 
 Let's define the single chip HyperRAM size as `HypS`, 8MiB in our case.
 

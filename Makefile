@@ -2,7 +2,7 @@
 
 XLEN     := 64
 ROOT     := $(patsubst %/,%, $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
-RISCV    := $(PWD)/install$(XLEN)
+RISCV    := $(ROOT)/install$(XLEN)
 DEST     := $(abspath $(RISCV))
 PATH     := $(DEST)/bin:$(PATH)
 
@@ -15,7 +15,8 @@ NR_CORES := $(shell nproc)
 
 # SBI options
 PLATFORM := fpga/alsaqr
-sbi-mk = PLATFORM=$(PLATFORM) CROSS_COMPILE=$(TOOLCHAIN_PREFIX)
+FW_FDT_PATH ?=
+sbi-mk = PLATFORM=$(PLATFORM) CROSS_COMPILE=$(TOOLCHAIN_PREFIX) $(if $(FW_FDT_PATH),FW_FDT_PATH=$(FW_FDT_PATH),)
 ifeq ($(XLEN), 32)
 sbi-mk += PLATFORM_RISCV_ISA=rv32ima PLATFORM_RISCV_XLEN=32
 else
@@ -111,7 +112,6 @@ $(MKIMAGE) u-boot/u-boot.bin: $(CC)
 	make -C u-boot openhwgroup_cv$(XLEN)a6_genesysII_defconfig
 	make -C u-boot CROSS_COMPILE=$(TOOLCHAIN_PREFIX)
 
-# OpenSBI with u-boot as payload
 $(RISCV)/fw_payload.bin: $(RISCV)/Image
 	make -C opensbi FW_PAYLOAD_PATH=$< $(sbi-mk)
 	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
