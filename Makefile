@@ -6,6 +6,7 @@ RISCV    := $(PWD)/install$(XLEN)
 DEST     := $(abspath $(RISCV))
 PATH     := $(DEST)/bin:$(PATH)
 
+UNK_TOOLCHAIN := riscv64-unknown-elf-
 TOOLCHAIN_PREFIX := $(ROOT)/buildroot/output/host/bin/riscv$(XLEN)-buildroot-linux-gnu-
 CC          := $(TOOLCHAIN_PREFIX)gcc
 OBJCOPY     := $(TOOLCHAIN_PREFIX)objcopy
@@ -114,7 +115,7 @@ $(RISCV)/Image: $(RISCV)/vmlinux
 	$(OBJCOPY) -O binary -R .note -R .comment -S $< $@
 
 $(RISCV)/baremetal.bin:
-	make -C $(ROOT)/bao-baremetal-guest PLATFORM=$(PLATFORM_RAW)
+	make -C $(ROOT)/bao-baremetal-guest PLATFORM=$(PLATFORM_RAW) CROSS_COMPILE=$(UNK_TOOLCHAIN)
 	cp $(ROOT)/bao-baremetal-guest/build/$(PLATFORM_RAW)/baremetal.bin $@
 	cp $(ROOT)/bao-baremetal-guest/build/$(PLATFORM_RAW)/baremetal.elf $(RISCV)/baremetal.elf
 
@@ -130,7 +131,7 @@ $(RISCV)/linux_wrapper: $(RISCV)/Image $(RISCV)/alsaqr-minimal.dtb
 	make -C linux-wrapper CROSS_COMPILE=riscv64-unknown-elf- ARCH=rv64 IMAGE=$< DTB=$(RISCV)/alsaqr-minimal.dtb TARGET=$@
 
 $(RISCV)/bao.bin:
-	make -C bao-hypervisor CONFIG=$(BAO_CONFIG) PLATFORM=$(PLATFORM_RAW) CROSS_COMPILE=riscv64-unknown-elf- IRQC=$(IRQC_BAO)
+	make -C bao-hypervisor CONFIG=$(BAO_CONFIG) PLATFORM=$(PLATFORM_RAW) CROSS_COMPILE=$(UNK_TOOLCHAIN) IRQC=$(IRQC_BAO)
 	cp bao-hypervisor/bin/$(PLATFORM_RAW)/$(BAO_CONFIG)/bao.elf $(RISCV)/bao.elf
 	cp bao-hypervisor/bin/$(PLATFORM_RAW)/$(BAO_CONFIG)/bao.bin $(RISCV)/bao.bin
 
@@ -184,8 +185,8 @@ run-imsic:RUN_IMSIC
 clean:
 	rm -rf $(RISCV)/fw_payload.bin
 	rm -rf $(RISCV)/fw_payload.elf
-	rm -rf $(RISCV)/alsaqr.dtb
-	rm -rf $(RISCV)/alsaqr-minimal.dtb
+	rm -rf $(RISCV)/$(PLATFORM_RAW).dtb
+	rm -rf $(RISCV)/$(PLATFORM_RAW)-minimal.dtb
 	rm -rf $(RISCV)/linux_wrapper.bin
 	rm -rf $(RISCV)/linux_wrapper.elf
 	rm -rf $(RISCV)/bao.bin
@@ -193,7 +194,7 @@ clean:
 	rm -rf $(RISCV)/baremetal.bin
 	rm -rf $(RISCV)/baremetal.elf
 	make -C $(OPENSBI_DIR) clean
-	make -C bao-hypervisor clean
+	make -C bao-hypervisor clean IRQC=$(IRQC_BAO)
 	make -C bao-baremetal-guest clean
 
 clean-baremetal:
