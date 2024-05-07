@@ -175,6 +175,8 @@ ifeq ($(GUEST),baremetal)
 	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/baremetal.bin $(RISCV)/$(PLATFORM_RAW).dtb $(RISCV)/bao.bin $(RISCV)/fw_payload.bin
 else ifeq ($(GUEST),linux)
 	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/$(PLATFORM_RAW).dtb $(RISCV)/linux_wrapper $(RISCV)/bao.bin $(RISCV)/fw_payload.bin
+else ifeq ($(GUEST),linux+baremetal)
+	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/baremetal.bin $(RISCV)/$(PLATFORM_RAW).dtb $(RISCV)/linux_wrapper $(RISCV)/bao.bin $(RISCV)/fw_payload.bin
 else
 	 $(error GUEST variable is not set to valid value)
 endif
