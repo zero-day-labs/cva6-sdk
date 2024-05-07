@@ -127,8 +127,8 @@ $(RISCV)/$(PLATFORM_RAW)-minimal.dtb:
 	dtc -I dts $(ROOT)/dtbs/$(PLATFORM_RAW)-linux-guest-$(IRQC).dts -O dtb -o $(ROOT)/dtbs/bins/$(PLATFORM_RAW)-linux-guest-$(IRQC).dtb 
 	cp $(ROOT)/dtbs/bins/$(PLATFORM_RAW)-linux-guest-$(IRQC).dtb $@
 
-$(RISCV)/linux_wrapper: $(RISCV)/Image $(RISCV)/alsaqr-minimal.dtb
-	make -C linux-wrapper CROSS_COMPILE=riscv64-unknown-elf- ARCH=rv64 IMAGE=$< DTB=$(RISCV)/alsaqr-minimal.dtb TARGET=$@
+$(RISCV)/linux_wrapper: $(RISCV)/Image $(RISCV)/$(PLATFORM_RAW)-minimal.dtb
+	make -C linux-wrapper CROSS_COMPILE=riscv64-unknown-elf- ARCH=rv64 IMAGE=$< DTB=$(RISCV)/$(PLATFORM_RAW)-minimal.dtb TARGET=$@
 
 $(RISCV)/bao.bin:
 	make -C bao-hypervisor CONFIG=$(BAO_CONFIG) PLATFORM=$(PLATFORM_RAW) CROSS_COMPILE=$(UNK_TOOLCHAIN) IRQC=$(IRQC_BAO)
