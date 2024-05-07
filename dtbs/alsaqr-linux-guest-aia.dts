@@ -90,12 +90,6 @@
 			compatible = "riscv,imsics";
 		};
 
-    debug-controller@0 {
-      compatible = "riscv,debug-013";
-      interrupts-extended = <&CPU0_intc 65535>  , <&CPU1_intc 65535>;
-      reg = <0x0 0x0 0x0 0x1000>;
-      reg-names = "control";
-    };
     uart@40000000 {
       compatible = "ns16550";
       reg = <0x0 0x40000000 0x0 0x1000>;
