@@ -156,7 +156,7 @@ RUN_APLIC:
 	qemu-system-riscv64 -nographic -M virt -machine aia=aplic -cpu rv64 -m 4G -smp 4 -serial pty -bios $(RISCV)/fw_payload.elf -device virtio-serial-device -chardev pty,id=serial3 -device virtconsole,chardev=serial3 -S -gdb tcp:localhost:9000
 #-machine dumpdtb=qemu.dtb
 RUN_IMSIC:
-	qemu-system-riscv64 -nographic -M virt -machine dumpdtb=qemu.dtb -machine aia=aplic-imsic,aia_guests=$(AIA_GUESTS) -cpu rv64 -m 4G -smp $(N_HARTS) -serial pty -bios $(RISCV)/fw_payload.elf -device virtio-serial-device -chardev pty,id=serial3 -device virtconsole,chardev=serial3 -S -gdb tcp:localhost:9000
+	qemu-system-riscv64 -nographic -M virt -machine aia=aplic-imsic,aia_guests=$(AIA_GUESTS) -cpu rv64 -m 4G -smp $(N_HARTS) -serial pty -bios $(RISCV)/fw_payload.elf -device virtio-serial-device -chardev pty,id=serial3 -device virtconsole,chardev=serial3 -S -gdb tcp:localhost:9000
 
 
 # specific recipes
@@ -168,6 +168,7 @@ dtb: $(RISCV)/$(PLATFORM_RAW).dtb
 linux: $(RISCV)/Image $(RISCV)/fw_payload.bin
 baremetal: $(RISCV)/baremetal.bin $(RISCV)/fw_payload.bin
 baremetal-qemu: $(RISCV)/baremetal_qemu.bin $(RISCV)/fw_payload_qemu.bin
+linux-qemu: $(RISCV)/Image $(RISCV)/fw_payload_qemu.bin
 bao:
 ifeq ($(GUEST),baremetal)
 	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/baremetal.bin $(RISCV)/$(PLATFORM_RAW).dtb $(RISCV)/bao.bin $(RISCV)/fw_payload.bin
