@@ -7,3 +7,9 @@
 [submodule "Splash-3"]
 	path = benchmarks/Splash-3
 	url = https://github.com/AlSaqr-platform/Splash-3
+[submodule "stack/bao-hypervisor"]
+	path = stack/bao-hypervisor
+	url = https://github.com/D3boker1/bao-hypervisor.git
+[submodule "stack/baremetal-app"]
+	path = stack/baremetal-app
+	url = https://github.com/D3boker1/bao-baremetal-guest.git
