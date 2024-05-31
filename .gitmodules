@@ -1,9 +1,9 @@
 [submodule "buildroot"]
-	path = buildroot
+	path = tools/buildroot
 	url = https://github.com/buildroot/buildroot.git
 [submodule "opensbi"]
-	path = opensbi
+	path = stack/opensbi
 	url = https://github.com/alsaqr-platform/opensbi.git
 [submodule "Splash-3"]
-	path = Splash-3
+	path = benchmarks/Splash-3
 	url = https://github.com/AlSaqr-platform/Splash-3
