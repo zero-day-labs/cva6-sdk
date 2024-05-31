@@ -6,12 +6,27 @@ RISCV    := $(ROOT)/install$(XLEN)
 DEST     := $(abspath $(RISCV))
 PATH     := $(DEST)/bin:$(PATH)
 
-TOOLCHAIN_PREFIX := $(ROOT)/buildroot/output/host/bin/riscv$(XLEN)-buildroot-linux-gnu-
+NR_CORES := $(shell nproc)
+
+# Paths to folders
+BENCHMARK_DIR := $(ROOT)/benchmarks
+SPLASH3_DIR := $(BENCHMARK_DIR)/Splash-3
+CACHETEST_DIR := $(BENCHMARK_DIR)/cachetest
+
+TOOLS_DIR := $(ROOT)/tools
+BUILDROOT_DIR := $(TOOLS_DIR)/buildroot
+
+SWSTACK_DIR := $(ROOT)/stack
+OPENSBI_DIR := $(SWSTACK_DIR)/opensbi
+LINUX_DIR := $(SWSTACK_DIR)/linux
+ROOTFS_DIR := $(LINUX_DIR)/rootfs
+
+
+CONFIGS_DIR := $(ROOT)/configs
+
+TOOLCHAIN_PREFIX := $(BUILDROOT_DIR)/output/host/bin/riscv$(XLEN)-buildroot-linux-gnu-
 CC          := $(TOOLCHAIN_PREFIX)gcc
 OBJCOPY     := $(TOOLCHAIN_PREFIX)objcopy
-MKIMAGE     := u-boot/tools/mkimage
-
-NR_CORES := $(shell nproc)
 
 # SBI options
 PLATFORM := fpga/alsaqr
@@ -23,76 +38,45 @@ else
 sbi-mk += PLATFORM_RISCV_ISA=rv64imafdc PLATFORM_RISCV_XLEN=64
 endif
 
-# U-Boot options
-ifeq ($(XLEN), 32)
-UIMAGE_LOAD_ADDRESS := 0x80400000
-UIMAGE_ENTRY_POINT  := 0x80400000
-else
-UIMAGE_LOAD_ADDRESS := 0x80200000
-UIMAGE_ENTRY_POINT  := 0x80200000
-endif
-
-# default configure flags
-tests-co              = --prefix=$(RISCV)/target
-
-# specific flags and rules for 32 / 64 version
-ifeq ($(XLEN), 32)
-isa-sim-co            = --prefix=$(RISCV) --with-isa=RV32IMA --with-priv=MSU
-else
-isa-sim-co            = --prefix=$(RISCV)
-endif
-
 # default make flags
-isa-sim-mk              = -j$(NR_CORES)
-tests-mk         		= -j$(NR_CORES)
 buildroot-mk       		= -j$(NR_CORES)
 
 # linux image
-buildroot_defconfig = configs/buildroot$(XLEN)_defconfig
-linux_defconfig = configs/linux$(XLEN)_defconfig
-busybox_defconfig = configs/busybox$(XLEN).config
+buildroot_defconfig = $(CONFIGS_DIR)/buildroot$(XLEN)_defconfig
+linux_defconfig = $(CONFIGS_DIR)/linux$(XLEN)_defconfig
+busybox_defconfig = $(CONFIGS_DIR)/busybox$(XLEN).config
 
 install-dir:
 	mkdir -p $(RISCV)
 
-isa-sim: install-dir $(CC) 
-	mkdir -p riscv-isa-sim/build
-	cd riscv-isa-sim/build;\
-	../configure $(isa-sim-co);\
-	make $(isa-sim-mk);\
-	make install;\
-	cd $(ROOT)
-
-tests: install-dir $(CC)
-	mkdir -p riscv-tests/build
-	cd riscv-tests/build;\
-	autoconf;\
-	../configure $(tests-co);\
-	make $(tests-mk);\
-	make install;\
-	cd $(ROOT)
+build-buildroot-defconfig:
+	rm -rf $(buildroot_defconfig) 
+	cp $(buildroot_defconfig)_base $(buildroot_defconfig)
+	@echo "BR2_ROOTFS_OVERLAY=\"$(ROOTFS_DIR)\"" >> $(buildroot_defconfig) 
+	@echo "BR2_PACKAGE_BUSYBOX_CONFIG=\"$(busybox_defconfig)\"" >> $(buildroot_defconfig) 
+	@echo "BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE=\"$(linux_defconfig)\"" >> $(buildroot_defconfig) 
 
 $(CC): $(buildroot_defconfig) $(linux_defconfig) $(busybox_defconfig)
-	make -C buildroot defconfig BR2_DEFCONFIG=../$(buildroot_defconfig)
-	make -C buildroot host-gcc-final $(buildroot-mk)
+	make -C $(BUILDROOT_DIR) defconfig BR2_DEFCONFIG=$(buildroot_defconfig)
+	make -C $(BUILDROOT_DIR) host-gcc-final $(buildroot-mk)
 
-all: $(CC) isa-sim
+all: $(CC)
 
 # benchmark for the cache subsystem
-rootfs/cachetest.elf: $(CC)
-	cd ./cachetest/ && $(CC) cachetest.c -o cachetest.elf
-	cp ./cachetest/cachetest.elf $@
+$(ROOTFS_DIR)/cachetest.elf: $(CC)
+	cd $(CACHETEST_DIR)/ && $(CC) cachetest.c -o cachetest.elf
+	cp $(CACHETEST_DIR)/cachetest.elf $@
 
-rootfs/perf: $(CC)
-	make -C Splash-3/codes all
+$(ROOTFS_DIR)/perf: $(CC)
+	make -C $(SPLASH3_DIR)/codes all
 	mkdir -p $@
-	cp -r Splash-3/codes/splash3 $@/splash3
-	cp -r Splash-3/codes/kernels $@/splash3/codes
+	cp -r $(SPLASH3_DIR)/codes/splash3 $@/splash3
+	cp -r $(SPLASH3_DIR)/codes/kernels $@/splash3/codes
 
-$(RISCV)/vmlinux: $(buildroot_defconfig) $(linux_defconfig) $(busybox_defconfig) $(CC) rootfs/cachetest.elf rootfs/perf
+$(RISCV)/vmlinux: build-buildroot-defconfig $(CC) $(ROOTFS_DIR)/cachetest.elf $(ROOTFS_DIR)/perf
 	mkdir -p $(RISCV)
-	make -C buildroot $(buildroot-mk)
-	cp buildroot/output/images/vmlinux $@
+	make -C $(BUILDROOT_DIR) $(buildroot-mk)
+	cp $(BUILDROOT_DIR)/output/images/vmlinux $@
 
 $(RISCV)/Image: $(RISCV)/vmlinux
 	$(OBJCOPY) -O binary -R .note -R .comment -S $< $@
@@ -100,34 +84,15 @@ $(RISCV)/Image: $(RISCV)/vmlinux
 $(RISCV)/Image.gz: $(RISCV)/Image
 	gzip -9 -k --force $< > $@
 
-# U-Boot-compatible Linux image
-$(RISCV)/uImage: $(RISCV)/Image.gz $(MKIMAGE)
-	$(MKIMAGE) -A riscv -O linux -T kernel -a $(UIMAGE_LOAD_ADDRESS) -e $(UIMAGE_ENTRY_POINT) -C gzip -n "CV$(XLEN)A6Linux" -d $< $@
-
-$(RISCV)/u-boot.bin: u-boot/u-boot.bin
-	mkdir -p $(RISCV)
-	cp $< $@
-
-$(MKIMAGE) u-boot/u-boot.bin: $(CC)
-	make -C u-boot openhwgroup_cv$(XLEN)a6_genesysII_defconfig
-	make -C u-boot CROSS_COMPILE=$(TOOLCHAIN_PREFIX)
-
 $(RISCV)/fw_payload.bin: $(RISCV)/Image
-	make -C opensbi FW_PAYLOAD_PATH=$< $(sbi-mk)
-	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
-	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
+	make -C $(OPENSBI_DIR) FW_PAYLOAD_PATH=$< $(sbi-mk)
+	cp $(OPENSBI_DIR)/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
+	cp $(OPENSBI_DIR)/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
 
 $(RISCV)/test_fw_payload.bin:
-	make -C opensbi $(sbi-mk)
-	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
-	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
-
-# OpenSBI for Spike with Linux as payload
-$(RISCV)/spike_fw_payload.elf: PLATFORM=generic
-$(RISCV)/spike_fw_payload.elf: $(RISCV)/Image
-	make -C opensbi FW_PAYLOAD_PATH=$< $(sbi-mk)
-	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/spike_fw_payload.elf
-	cp opensbi/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/spike_fw_payload.bin
+	make -C $(OPENSBI_DIR) $(sbi-mk)
+	cp $(OPENSBI_DIR)/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
+	cp $(OPENSBI_DIR)/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
 
 # need to run flash-sdcard with sudo -E, be careful to set the correct SDDEVICE
 # Number of sector required for FWPAYLOAD partition (each sector is 512B)
@@ -151,29 +116,30 @@ gcc: $(CC)
 vmlinux: $(RISCV)/vmlinux
 fw_payload.bin: $(RISCV)/fw_payload.bin
 test_fw_payload.bin: $(RISCV)/test_fw_payload.bin
-uImage: $(RISCV)/uImage
-spike_payload: $(RISCV)/spike_fw_payload.elf
 
-images: $(CC) $(RISCV)/fw_payload.bin $(RISCV)/uImage
+images: $(CC) $(RISCV)/fw_payload.bin
 
 alsaqr.dtb:
-	make -C opensbi $(sbi-mk) alsaqr.dts
-	dtc -I dts opensbi/platform/$(PLATFORM)/fdt_gen/alsaqr.dts -O dtb -o $@
+	make -C $(OPENSBI_DIR) $(sbi-mk) alsaqr.dts
+	dtc -I dts $(OPENSBI_DIR)/platform/$(PLATFORM)/fdt_gen/alsaqr.dts -O dtb -o $@
 
 clean:
-	rm -rf $(RISCV)/vmlinux cachetest/*.elf rootfs/cachetest.elf
-	rm -rf $(RISCV)/fw_payload.bin $(RISCV)/uImage $(RISCV)/Image.gz
-	make -C u-boot clean
-	make -C opensbi distclean
+	rm -rf $(RISCV)/vmlinux
+	rm -rf $(CACHETEST_DIR)/*.elf $(ROOTFS_DIR)/cachetest.elf
+	make -C $(SPLASH3_DIR)/codes clean
+	rm -rf $(ROOTFS_DIR)/perf/*
+	rm -rf $(buildroot_defconfig)
+	rm -rf $(RISCV)/fw_payload.bin $(RISCV)/Image.gz
+	make -C $(OPENSBI_DIR) distclean
 
 lqemu:
-	qemu-system-riscv64 -M virt -m 256M -nographic     -bios opensbi/build/platform/generic/firmware/fw_jump.bin       -kernel install64/Image         -append "root=/dev/vda rw console=ttyS0"
+	qemu-system-riscv64 -M virt -m 256M -nographic     -bios $(OPENSBI_DIR)/build/platform/generic/firmware/fw_jump.bin       -kernel install64/Image         -append "root=/dev/vda rw console=ttyS0"
 
 clean-all: clean
-	rm -rf $(RISCV) riscv-isa-sim/build riscv-tests/build
-	make -C buildroot clean
+	rm -rf $(RISCV)
+	make -C $(BUILDROOT_DIR) clean
 
-.PHONY: gcc vmlinux images help fw_payload.bin uImage alsaqr.dtb test_fw_payload.bin
+.PHONY: gcc vmlinux images help fw_payload.bin alsaqr.dtb test_fw_payload.bin
 
 help:
 	@echo "usage: $(MAKE) [tool/img] ..."
@@ -183,12 +149,12 @@ help:
 	@echo ""
 	@echo "install [tool] with compiler"
 	@echo "    where tool can be any one of:"
-	@echo "        gcc isa-sim tests"
+	@echo "        gcc"
 	@echo ""
 	@echo "build linux images for cva6"
 	@echo "        make images"
 	@echo "    for specific artefact"
-	@echo "        make [vmlinux|uImage|fw_payload.bin]"
+	@echo "        make [vmlinux|fw_payload.bin]"
 	@echo ""
 	@echo "There are two clean targets:"
 	@echo "    Clean only build object"

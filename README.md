@@ -1,12 +1,8 @@
-# CVA6 SDK
+# CVA6-based SoC SDK
 
-This repository houses a set of RISCV tools for the [CVA6 core](https://github.com/openhwgroup/cva6). Most importantly it **does not contain openOCD**.
+This repository houses a set of RISC-V tools for the [CVA6-based SoCs](https://github.com/openhwgroup/cva6). Most importantly it **does not contain openOCD**.
 
 Included tools:
-* [Spike](https://github.com/riscv/riscv-isa-sim/), the ISA simulator
-* [riscv-tests](https://github.com/riscv/riscv-tests/), a battery of ISA-level tests
-* [riscv-fesvr](https://github.com/riscv/riscv-fesvr/), the host side of a simulation tether that services system calls on behalf of a target machine
-* [u-boot](https://github.com/openhwgroup/u-boot/)
 * [opensbi](https://github.com/riscv/opensbi/), the open-source reference implementation of the RISC-V Supervisor Binary Interface (SBI)
 
 ## Quickstart
@@ -20,7 +16,7 @@ Requirements Fedora:
 ```console
 $ sudo dnf install autoconf automake @development-tools curl dtc libmpc-devel mpfr-devel gmp-devel libusb-devel gawk gcc-c++ bison flex texinfo gperf libtool patchutils bc zlib-devel expat-devel
 ```
-You can select the XLEN by setting it in the Makefile.
+You can select the XLEN by setting it in the Makefile. If none is provided, `XLEN = 64` is used instead
 Then compile the Linux images with
 
 ```console
@@ -40,40 +36,13 @@ $ make all
 You can also build a compatible Linux image that boots Linux on the CVA6 fpga mapping:
 ```bash
 $ make vmlinux # make only the elf Linux image
-$ make uImage.bin # generate the Linux image with the u-boot wrapper
-$ make fw_payload.bin # generate the OpenSBI + U-Boot payload
+$ make fw_payload.bin # generate the OpenSBI payload (Linux + OpenSBI)
 ```
 
 Or you can build everything directly with:
 
 ```bash
 $ make images # generates all images and save them in install$(XLEN)
-```
-
-## Spike
-You can test your image on spike 
-First, build spike with:
-
-```bash
-$ make isa-sim
-```
-
-Build the OpenSBI firmware with the Linux payload for the Spike platform:
-
-```bash
-$ make spike_payload
-```
-
-You can now launch Spike with OpenSBI + Linux
-
-```bash
-$ install$(XLEN)/bin/spike install$(XLEN)/spike_fw_payload.elf
-```
-
-Spike allows trace logging
-
-```bash
-$ install$(XLEN)/bin/spike --log-commits install$(XLEN)/spike_fw_payload.elf 2> trace.log.commits
 ```
 
 ### Booting from an SD card
@@ -109,21 +78,6 @@ Likewise it also incorporates a script (rootfs/etc/init.d/S40fixup) which replac
 value. This should be replaced by the unique value on the back of the Genesys2 board if more than one device is used on
 the same VLAN. Needless to say both of these values would need regenerating for anything other than development use.
 
-# Docker Container
-
-There is a pretty basic Docker container you can use to get a stable build environment to build the image.
-
-```
-$ cd container
-$ sudo docker build -t ghcr.io/pulp-platform/ariane-sdk -f Dockerfile .
-```
-
-And build the image:
-```
-$ cd ..
-$ sudo docker run -it -v `pwd`:/repo -w /repo -u $(id -u ${USER}):$(id -g ${USER}) ghcr.io/pulp-platform/ariane-sdk
-```
-
 # AlSaqr
 
 ## Context
@@ -156,25 +110,6 @@ However, for alsaqr the hardware is under development and the boot-flow is depen
   3. run Linux on FPGA (and possibly also on the chip).
 
 In pratice, the ZSBL will be the JTAG loading the image, and then we'll jump directly to the OpenSBI and then to the linux kernel. To do so:
-
-Requirements Ubuntu:
-```console
-$ sudo apt-get install autoconf automake autotools-dev curl libmpc-dev libmpfr-dev libgmp-dev libusb-1.0-0-dev gawk build-essential bison flex texinfo gperf libtool patchutils bc zlib1g-dev device-tree-compiler pkg-config libexpat-dev
-```
-
-Requirements Fedora:
-```console
-$ sudo dnf install autoconf automake @development-tools curl dtc libmpc-devel mpfr-devel gmp-devel libusb-devel gawk gcc-c++ bison flex texinfo gperf libtool patchutils bc zlib-devel expat-devel
-```
-You can select the XLEN by setting it in the Makefile.
-Then compile the Linux images with
-
-```console
-$ git submodule update --init --recursive
-$ make uImage
-```
-
-This will generate Linux's image, containing also the root file system, at `install64/Image`.
 
 This image will be opensbi's payload. To generate the full image:
 
