@@ -24,6 +24,7 @@ CACHETEST_DIR := $(BENCHMARK_DIR)/cachetest
 
 TOOLS_DIR := $(ROOT)/tools
 BUILDROOT_DIR := $(TOOLS_DIR)/buildroot
+LINUX_WRAPPER_DIR := $(TOOLS_DIR)/linux-wrapper
 
 SWSTACK_DIR := $(ROOT)/stack
 OPENSBI_DIR := $(SWSTACK_DIR)/opensbi
@@ -31,6 +32,7 @@ LINUX_DIR := $(SWSTACK_DIR)/linux
 ROOTFS_DIR := $(LINUX_DIR)/rootfs
 BAREMETAL_DIR := $(SWSTACK_DIR)/baremetal-app
 BAO_DIR := $(SWSTACK_DIR)/bao-hypervisor
+DTB_DIR := $(SWSTACK_DIR)/dtbs
 
 CONFIGS_DIR := $(ROOT)/configs
 
@@ -43,7 +45,7 @@ OBJCOPY     := $(TOOLCHAIN_PREFIX)objcopy
 QEMU_N_HARTS := 4
 
 # SBI options
-FW_FDT_PATH ?=
+FW_FDT_PATH := $(RISCV)/$(PLATFORM_RAW).dtb
 PLATFORM := fpga/$(PLATFORM_RAW)
 
 # If we are compiling the baremetal app set the payload to it
@@ -133,12 +135,23 @@ $(RISCV)/baremetal.bin:
 	cp $(BAREMETAL_DIR)/build/$(PLATFORM_RAW)/baremetal.bin $@
 	cp $(BAREMETAL_DIR)/build/$(PLATFORM_RAW)/baremetal.elf $(RISCV)/baremetal.elf
 
+$(RISCV)/$(PLATFORM_RAW).dtb:
+	dtc -I dts $(DTB_DIR)/$(PLATFORM_RAW)-plic.dts -O dtb -o $(DTB_DIR)/bins/$(PLATFORM_RAW)-plic.dtb 
+	cp $(DTB_DIR)/bins/$(PLATFORM_RAW)-plic.dtb $@
+
+$(RISCV)/$(PLATFORM_RAW)-minimal.dtb:
+	dtc -I dts $(DTB_DIR)/$(PLATFORM_RAW)-linux-guest-plic.dts -O dtb -o $(DTB_DIR)/bins/$(PLATFORM_RAW)-linux-guest-plic.dtb
+	cp $(DTB_DIR)/bins/$(PLATFORM_RAW)-linux-guest-plic.dtb $@
+
+$(RISCV)/linux_wrapper: $(RISCV)/Image $(RISCV)/$(PLATFORM_RAW)-minimal.dtb
+	make -C $(LINUX_WRAPPER_DIR) CROSS_COMPILE=$(TOOLCHAIN_UNK) ARCH=rv64 IMAGE=$< DTB=$(RISCV)/$(PLATFORM_RAW)-minimal.dtb TARGET=$@
+
 $(RISCV)/bao.bin:
-	make -C $(BAO_DIR) CONFIG=$(BAO_CONFIG) PLATFORM=$(PLATFORM_RAW) CROSS_COMPILE=$(TOOLCHAIN_UNK)
+	make -C $(BAO_DIR) CONFIG=$(BAO_CONFIG) PLATFORM=$(PLATFORM_RAW) CROSS_COMPILE=$(TOOLCHAIN_UNK) CPPFLAGS=-DGUEST_IMGS=$(RISCV)
 	cp $(BAO_DIR)/bin/$(PLATFORM_RAW)/$(BAO_CONFIG)/bao.elf $(RISCV)/bao.elf
 	cp $(BAO_DIR)/bin/$(PLATFORM_RAW)/$(BAO_CONFIG)/bao.bin $(RISCV)/bao.bin
 
-$(RISCV)/fw_payload.bin:
+$(RISCV)/fw_payload.bin: $(RISCV)/$(PLATFORM_RAW).dtb
 	make -C $(OPENSBI_DIR) $(sbi-mk)
 	cp $(OPENSBI_DIR)/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
 	cp $(OPENSBI_DIR)/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
@@ -176,7 +189,9 @@ linux: $(RISCV)/Image $(RISCV)/fw_payload.bin
 baremetal: $(RISCV)/baremetal.bin $(RISCV)/fw_payload.bin
 bao:
 ifeq ($(BAO-GUEST),baremetal)
-	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/baremetal.bin $(RISCV)/bao.bin $(RISCV)/fw_payload.bin
+	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/baremetal.bin $(RISCV)/bao.bin $(RISCV)/$(PLATFORM_RAW).dtb $(RISCV)/fw_payload.bin
+else ifeq ($(BAO-GUEST),linux)
+	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/$(PLATFORM_RAW).dtb $(RISCV)/linux_wrapper $(RISCV)/bao.bin $(RISCV)/fw_payload.bin
 else
 	 $(error BAO-GUEST must be either "linux" or "baremetal")
 endif
@@ -196,9 +211,10 @@ lqemu:
 
 # Clean-related rules
 clean:
-	rm -rf $(RISCV)/vmlinux
 	rm -rf $(RISCV)/baremetal.*
 	rm -rf $(RISCV)/bao.*
+	rm -rf $(RISCV)/linux_wrapper.*
+	rm -rf $(RISCV)/*.dtb
 	rm -rf $(CACHETEST_DIR)/*.elf $(ROOTFS_DIR)/cachetest.elf
 	make -C $(SPLASH3_DIR)/codes clean
 	rm -rf $(ROOTFS_DIR)/perf/*
