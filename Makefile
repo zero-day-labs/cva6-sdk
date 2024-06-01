@@ -1,14 +1,17 @@
-# Makefile for RISC-V toolchain; run 'make help' for usage. set XLEN here to 32 or 64.
 
+##################################################################
+##																##
+##			Plat Macros... Change it here or in the terminal    ##
+##																##
+##################################################################
 XLEN     := 64
 PLATFORM_RAW := alsaqr
-
-# Defaults frequency and num harts
 PLAT_TARGET_FREQ := 40000000 
 PLAT_NUM_HARTS := 2
+##################################################################
+
 
 NR_CORES := $(shell nproc)
-
 ROOT     := $(patsubst %/,%, $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 RISCV    := $(ROOT)/install$(XLEN)
 DEST     := $(abspath $(RISCV))
@@ -27,6 +30,7 @@ OPENSBI_DIR := $(SWSTACK_DIR)/opensbi
 LINUX_DIR := $(SWSTACK_DIR)/linux
 ROOTFS_DIR := $(LINUX_DIR)/rootfs
 BAREMETAL_DIR := $(SWSTACK_DIR)/baremetal-app
+BAO_DIR := $(SWSTACK_DIR)/bao-hypervisor
 
 CONFIGS_DIR := $(ROOT)/configs
 
@@ -44,16 +48,30 @@ PLATFORM := fpga/$(PLATFORM_RAW)
 
 # If we are compiling the baremetal app set the payload to it
 ifneq ($(BARE),)
-FW_PAYLOAD := $(RISCV)/baremetal.bin
+	FW_PAYLOAD := $(RISCV)/baremetal.bin
+endif
+
+# if BAO-GUEST is defined (i.e., we will run bao rule) set the openSBI payload to bao
+ifneq ($(BAO-GUEST),)
+# Check if BAO-GUEST is either "linux" or "baremetal"
+    ifneq ($(filter $(BAO-GUEST),linux baremetal),)
+		BAO_CONFIG := $(PLATFORM_RAW)-$(BAO-GUEST)-plic
+		FW_PAYLOAD := $(RISCV)/bao.bin
+    else
+        $(error BAO-GUEST must be either "linux" or "baremetal")
+    endif
 endif
 
 # If QEMU is defined, change the target platform
 ifneq ($(QEMU),)
-PLATFORM_RAW := qemu-riscv64-virt
-PLATFORM := generic
+	PLATFORM_RAW := qemu-riscv64-virt
+	PLATFORM := generic
+	ifneq ($(BAO-GUEST),)
+		BAO_CONFIG := qemu-$(BAO-GUEST)-plic
+	endif
 else
-TARGET_FREQ := $(PLAT_TARGET_FREQ) 
-NUM_HARTS := $(PLAT_NUM_HARTS)
+	TARGET_FREQ := $(PLAT_TARGET_FREQ) 
+	NUM_HARTS := $(PLAT_NUM_HARTS)
 endif
 
 sbi-mk = PLATFORM=$(PLATFORM) FW_PAYLOAD_PATH=$(FW_PAYLOAD) CROSS_COMPILE=$(TOOLCHAIN_PREFIX) $(if $(FW_FDT_PATH),FW_FDT_PATH=$(FW_FDT_PATH),) $(if $(TARGET_FREQ),TARGET_FREQ=$(TARGET_FREQ),) $(if $(NUM_HARTS),NUM_HARTS=$(NUM_HARTS),) 
@@ -115,6 +133,11 @@ $(RISCV)/baremetal.bin:
 	cp $(BAREMETAL_DIR)/build/$(PLATFORM_RAW)/baremetal.bin $@
 	cp $(BAREMETAL_DIR)/build/$(PLATFORM_RAW)/baremetal.elf $(RISCV)/baremetal.elf
 
+$(RISCV)/bao.bin:
+	make -C $(BAO_DIR) CONFIG=$(BAO_CONFIG) PLATFORM=$(PLATFORM_RAW) CROSS_COMPILE=$(TOOLCHAIN_UNK)
+	cp $(BAO_DIR)/bin/$(PLATFORM_RAW)/$(BAO_CONFIG)/bao.elf $(RISCV)/bao.elf
+	cp $(BAO_DIR)/bin/$(PLATFORM_RAW)/$(BAO_CONFIG)/bao.bin $(RISCV)/bao.bin
+
 $(RISCV)/fw_payload.bin:
 	make -C $(OPENSBI_DIR) $(sbi-mk)
 	cp $(OPENSBI_DIR)/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
@@ -151,6 +174,12 @@ test_fw_payload.bin: $(RISCV)/test_fw_payload.bin
 vmlinux: $(RISCV)/vmlinux
 linux: $(RISCV)/Image $(RISCV)/fw_payload.bin
 baremetal: $(RISCV)/baremetal.bin $(RISCV)/fw_payload.bin
+bao:
+ifeq ($(BAO-GUEST),baremetal)
+	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/baremetal.bin $(RISCV)/bao.bin $(RISCV)/fw_payload.bin
+else
+	 $(error BAO-GUEST must be either "linux" or "baremetal")
+endif
 
 images: $(CC) $(RISCV)/fw_payload.bin
 
@@ -158,9 +187,18 @@ alsaqr.dtb:
 	make -C $(OPENSBI_DIR) $(sbi-mk) alsaqr.dts
 	dtc -I dts $(OPENSBI_DIR)/platform/$(PLATFORM)/fdt_gen/alsaqr.dts -O dtb -o $@
 
+# Qemu-related rules
+bare-qemu:
+	qemu-system-riscv64 -nographic -M virt -cpu rv64 -m 4G -smp $(QEMU_N_HARTS) -serial pty -bios $(RISCV)/fw_payload.elf -device virtio-serial-device -chardev pty,id=serial3 -device virtconsole,chardev=serial3 -S -gdb tcp:localhost:9000
+
+lqemu:
+	qemu-system-riscv64 -M virt -m 256M -nographic     -bios $(OPENSBI_DIR)/build/platform/generic/firmware/fw_jump.bin       -kernel install64/Image         -append "root=/dev/vda rw console=ttyS0"
+
+# Clean-related rules
 clean:
 	rm -rf $(RISCV)/vmlinux
 	rm -rf $(RISCV)/baremetal.*
+	rm -rf $(RISCV)/bao.*
 	rm -rf $(CACHETEST_DIR)/*.elf $(ROOTFS_DIR)/cachetest.elf
 	make -C $(SPLASH3_DIR)/codes clean
 	rm -rf $(ROOTFS_DIR)/perf/*
@@ -168,12 +206,7 @@ clean:
 	rm -rf $(RISCV)/fw_payload.bin $(RISCV)/Image.gz
 	make -C $(OPENSBI_DIR) distclean
 	make -C $(BAREMETAL_DIR) clean
-
-bare-qemu:
-	qemu-system-riscv64 -nographic -M virt -cpu rv64 -m 4G -smp $(QEMU_N_HARTS) -serial pty -bios $(RISCV)/fw_payload.elf -device virtio-serial-device -chardev pty,id=serial3 -device virtconsole,chardev=serial3 -S -gdb tcp:localhost:9000
-
-lqemu:
-	qemu-system-riscv64 -M virt -m 256M -nographic     -bios $(OPENSBI_DIR)/build/platform/generic/firmware/fw_jump.bin       -kernel install64/Image         -append "root=/dev/vda rw console=ttyS0"
+	make -C $(BAO_DIR) clean
 
 clean-all: clean
 	rm -rf $(RISCV)
