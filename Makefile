@@ -1,12 +1,18 @@
 # Makefile for RISC-V toolchain; run 'make help' for usage. set XLEN here to 32 or 64.
 
 XLEN     := 64
+PLATFORM_RAW := alsaqr
+
+# Defaults frequency and num harts
+PLAT_TARGET_FREQ := 40000000 
+PLAT_NUM_HARTS := 2
+
+NR_CORES := $(shell nproc)
+
 ROOT     := $(patsubst %/,%, $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 RISCV    := $(ROOT)/install$(XLEN)
 DEST     := $(abspath $(RISCV))
 PATH     := $(DEST)/bin:$(PATH)
-
-NR_CORES := $(shell nproc)
 
 # Paths to folders
 BENCHMARK_DIR := $(ROOT)/benchmarks
@@ -20,18 +26,37 @@ SWSTACK_DIR := $(ROOT)/stack
 OPENSBI_DIR := $(SWSTACK_DIR)/opensbi
 LINUX_DIR := $(SWSTACK_DIR)/linux
 ROOTFS_DIR := $(LINUX_DIR)/rootfs
-
+BAREMETAL_DIR := $(SWSTACK_DIR)/baremetal-app
 
 CONFIGS_DIR := $(ROOT)/configs
 
+TOOLCHAIN_UNK := riscv64-unknown-elf-
 TOOLCHAIN_PREFIX := $(BUILDROOT_DIR)/output/host/bin/riscv$(XLEN)-buildroot-linux-gnu-
 CC          := $(TOOLCHAIN_PREFIX)gcc
 OBJCOPY     := $(TOOLCHAIN_PREFIX)objcopy
 
+# Qemu defaults
+QEMU_N_HARTS := 4
+
 # SBI options
-PLATFORM := fpga/alsaqr
 FW_FDT_PATH ?=
-sbi-mk = PLATFORM=$(PLATFORM) CROSS_COMPILE=$(TOOLCHAIN_PREFIX) $(if $(FW_FDT_PATH),FW_FDT_PATH=$(FW_FDT_PATH),)
+PLATFORM := fpga/$(PLATFORM_RAW)
+
+# If we are compiling the baremetal app set the payload to it
+ifneq ($(BARE),)
+FW_PAYLOAD := $(RISCV)/baremetal.bin
+endif
+
+# If QEMU is defined, change the target platform
+ifneq ($(QEMU),)
+PLATFORM_RAW := qemu-riscv64-virt
+PLATFORM := generic
+else
+TARGET_FREQ := $(PLAT_TARGET_FREQ) 
+NUM_HARTS := $(PLAT_NUM_HARTS)
+endif
+
+sbi-mk = PLATFORM=$(PLATFORM) FW_PAYLOAD_PATH=$(FW_PAYLOAD) CROSS_COMPILE=$(TOOLCHAIN_PREFIX) $(if $(FW_FDT_PATH),FW_FDT_PATH=$(FW_FDT_PATH),) $(if $(TARGET_FREQ),TARGET_FREQ=$(TARGET_FREQ),) $(if $(NUM_HARTS),NUM_HARTS=$(NUM_HARTS),) 
 ifeq ($(XLEN), 32)
 sbi-mk += PLATFORM_RISCV_ISA=rv32ima PLATFORM_RISCV_XLEN=32
 else
@@ -56,7 +81,7 @@ build-buildroot-defconfig:
 	@echo "BR2_PACKAGE_BUSYBOX_CONFIG=\"$(busybox_defconfig)\"" >> $(buildroot_defconfig) 
 	@echo "BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE=\"$(linux_defconfig)\"" >> $(buildroot_defconfig) 
 
-$(CC): $(buildroot_defconfig) $(linux_defconfig) $(busybox_defconfig)
+$(CC): build-buildroot-defconfig $(linux_defconfig) $(busybox_defconfig)
 	make -C $(BUILDROOT_DIR) defconfig BR2_DEFCONFIG=$(buildroot_defconfig)
 	make -C $(BUILDROOT_DIR) host-gcc-final $(buildroot-mk)
 
@@ -84,8 +109,14 @@ $(RISCV)/Image: $(RISCV)/vmlinux
 $(RISCV)/Image.gz: $(RISCV)/Image
 	gzip -9 -k --force $< > $@
 
-$(RISCV)/fw_payload.bin: $(RISCV)/Image
-	make -C $(OPENSBI_DIR) FW_PAYLOAD_PATH=$< $(sbi-mk)
+$(RISCV)/baremetal.bin:
+	make -C $(BAREMETAL_DIR) PLATFORM=$(PLATFORM_RAW) CROSS_COMPILE=$(TOOLCHAIN_UNK)
+	mkdir -p $(RISCV)
+	cp $(BAREMETAL_DIR)/build/$(PLATFORM_RAW)/baremetal.bin $@
+	cp $(BAREMETAL_DIR)/build/$(PLATFORM_RAW)/baremetal.elf $(RISCV)/baremetal.elf
+
+$(RISCV)/fw_payload.bin:
+	make -C $(OPENSBI_DIR) $(sbi-mk)
 	cp $(OPENSBI_DIR)/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
 	cp $(OPENSBI_DIR)/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
 
@@ -113,9 +144,13 @@ format-sd: $(SDDEVICE)
 
 # specific recipes
 gcc: $(CC)
-vmlinux: $(RISCV)/vmlinux
+
 fw_payload.bin: $(RISCV)/fw_payload.bin
 test_fw_payload.bin: $(RISCV)/test_fw_payload.bin
+
+vmlinux: $(RISCV)/vmlinux
+linux: $(RISCV)/Image $(RISCV)/fw_payload.bin
+baremetal: $(RISCV)/baremetal.bin $(RISCV)/fw_payload.bin
 
 images: $(CC) $(RISCV)/fw_payload.bin
 
@@ -125,12 +160,17 @@ alsaqr.dtb:
 
 clean:
 	rm -rf $(RISCV)/vmlinux
+	rm -rf $(RISCV)/baremetal.*
 	rm -rf $(CACHETEST_DIR)/*.elf $(ROOTFS_DIR)/cachetest.elf
 	make -C $(SPLASH3_DIR)/codes clean
 	rm -rf $(ROOTFS_DIR)/perf/*
 	rm -rf $(buildroot_defconfig)
 	rm -rf $(RISCV)/fw_payload.bin $(RISCV)/Image.gz
 	make -C $(OPENSBI_DIR) distclean
+	make -C $(BAREMETAL_DIR) clean
+
+bare-qemu:
+	qemu-system-riscv64 -nographic -M virt -cpu rv64 -m 4G -smp $(QEMU_N_HARTS) -serial pty -bios $(RISCV)/fw_payload.elf -device virtio-serial-device -chardev pty,id=serial3 -device virtconsole,chardev=serial3 -S -gdb tcp:localhost:9000
 
 lqemu:
 	qemu-system-riscv64 -M virt -m 256M -nographic     -bios $(OPENSBI_DIR)/build/platform/generic/firmware/fw_jump.bin       -kernel install64/Image         -append "root=/dev/vda rw console=ttyS0"
