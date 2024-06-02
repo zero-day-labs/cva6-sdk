@@ -5,12 +5,13 @@
 ##																##
 ##################################################################
 XLEN     := 64
-PLATFORM_RAW := alsaqr
+PLAT := alsaqr 
 PLAT_TARGET_FREQ := 40000000 
 PLAT_NUM_HARTS := 2
 ##################################################################
 
 
+PLATFORM_RAW := $(PLAT)
 NR_CORES := $(shell nproc)
 ROOT     := $(patsubst %/,%, $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 RISCV    := $(ROOT)/install$(XLEN)
@@ -42,11 +43,12 @@ CC          := $(TOOLCHAIN_PREFIX)gcc
 OBJCOPY     := $(TOOLCHAIN_PREFIX)objcopy
 
 # Qemu defaults
-QEMU_N_HARTS := 4
+QEMU_N_HARTS := $(PLAT_NUM_HARTS)
 
 # SBI options
 FW_FDT_PATH := $(RISCV)/$(PLATFORM_RAW).dtb
 PLATFORM := fpga/$(PLATFORM_RAW)
+FW_PAYLOAD := $(RISCV)/Image
 
 # If we are compiling the baremetal app set the payload to it
 ifneq ($(BARE),)
@@ -65,9 +67,10 @@ ifneq ($(BAO-GUEST),)
 endif
 
 # If QEMU is defined, change the target platform
-ifneq ($(QEMU),)
+ifeq ($(PLAT),qemu)
 	PLATFORM_RAW := qemu-riscv64-virt
 	PLATFORM := generic
+	FW_FDT_PATH :=	
 	ifneq ($(BAO-GUEST),)
 		BAO_CONFIG := qemu-$(BAO-GUEST)-plic
 	endif
@@ -136,12 +139,14 @@ $(RISCV)/baremetal.bin:
 	cp $(BAREMETAL_DIR)/build/$(PLATFORM_RAW)/baremetal.elf $(RISCV)/baremetal.elf
 
 $(RISCV)/$(PLATFORM_RAW).dtb:
-	dtc -I dts $(DTB_DIR)/$(PLATFORM_RAW)-plic.dts -O dtb -o $(DTB_DIR)/bins/$(PLATFORM_RAW)-plic.dtb 
-	cp $(DTB_DIR)/bins/$(PLATFORM_RAW)-plic.dtb $@
+	make -C $(DTB_DIR) dts NAME=$(PLATFORM_RAW) TARGET_FREQ=$(PLAT_TARGET_FREQ) NUM_HARTS=$(PLAT_NUM_HARTS) MINIMAL=n IRQC=plic
+	dtc -I dts $(DTB_DIR)/$(PLATFORM_RAW).dts -O dtb -o $(DTB_DIR)/bins/$(PLATFORM_RAW).dtb 
+	cp $(DTB_DIR)/bins/$(PLATFORM_RAW).dtb $@
 
 $(RISCV)/$(PLATFORM_RAW)-minimal.dtb:
-	dtc -I dts $(DTB_DIR)/$(PLATFORM_RAW)-linux-guest-plic.dts -O dtb -o $(DTB_DIR)/bins/$(PLATFORM_RAW)-linux-guest-plic.dtb
-	cp $(DTB_DIR)/bins/$(PLATFORM_RAW)-linux-guest-plic.dtb $@
+	make -C $(DTB_DIR) dts NAME=$(PLATFORM_RAW)-minimal TARGET_FREQ=$(PLAT_TARGET_FREQ) NUM_HARTS=$(PLAT_NUM_HARTS) MINIMAL=y IRQC=plic
+	dtc -I dts $(DTB_DIR)/$(PLATFORM_RAW)-minimal.dts -O dtb -o $(DTB_DIR)/bins/$(PLATFORM_RAW)-minimal.dtb
+	cp $(DTB_DIR)/bins/$(PLATFORM_RAW)-minimal.dtb $@
 
 $(RISCV)/linux_wrapper: $(RISCV)/Image $(RISCV)/$(PLATFORM_RAW)-minimal.dtb
 	make -C $(LINUX_WRAPPER_DIR) CROSS_COMPILE=$(TOOLCHAIN_UNK) ARCH=rv64 IMAGE=$< DTB=$(RISCV)/$(PLATFORM_RAW)-minimal.dtb TARGET=$@
@@ -161,23 +166,6 @@ $(RISCV)/test_fw_payload.bin:
 	cp $(OPENSBI_DIR)/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
 	cp $(OPENSBI_DIR)/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
 
-# need to run flash-sdcard with sudo -E, be careful to set the correct SDDEVICE
-# Number of sector required for FWPAYLOAD partition (each sector is 512B)
-FWPAYLOAD_SECTORSTART := 2048
-FWPAYLOAD_SECTORSIZE = $(shell ls -l --block-size=512 $(RISCV)/fw_payload.bin | cut -d " " -f5 )
-FWPAYLOAD_SECTOREND = $(shell echo $(FWPAYLOAD_SECTORSTART)+$(FWPAYLOAD_SECTORSIZE) | bc)
-SDDEVICE_PART1 = $(shell lsblk $(SDDEVICE) -no PATH | head -2 | tail -1)
-SDDEVICE_PART2 = $(shell lsblk $(SDDEVICE) -no PATH | head -3 | tail -1)
-# Always flash uImage at 512M, easier for u-boot boot command
-UIMAGE_SECTORSTART := 512M
-flash-sdcard: format-sd
-	dd if=$(RISCV)/fw_payload.bin of=$(SDDEVICE_PART1) status=progress oflag=sync bs=1M
-	dd if=$(RISCV)/uImage         of=$(SDDEVICE_PART2) status=progress oflag=sync bs=1M
-
-format-sd: $(SDDEVICE)
-	@test -n "$(SDDEVICE)" || (echo 'SDDEVICE must be set, Ex: make flash-sdcard SDDEVICE=/dev/sdc' && exit 1)
-	sgdisk --clear -g --new=1:$(FWPAYLOAD_SECTORSTART):$(FWPAYLOAD_SECTOREND) --new=2:$(UIMAGE_SECTORSTART):0 --typecode=1:3000 --typecode=2:8300 $(SDDEVICE)
-
 # specific recipes
 gcc: $(CC)
 
@@ -189,9 +177,9 @@ linux: $(RISCV)/Image $(RISCV)/fw_payload.bin
 baremetal: $(RISCV)/baremetal.bin $(RISCV)/fw_payload.bin
 bao:
 ifeq ($(BAO-GUEST),baremetal)
-	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/baremetal.bin $(RISCV)/bao.bin $(RISCV)/$(PLATFORM_RAW).dtb $(RISCV)/fw_payload.bin
+	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/baremetal.bin $(RISCV)/bao.bin $(RISCV)/fw_payload.bin
 else ifeq ($(BAO-GUEST),linux)
-	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/$(PLATFORM_RAW).dtb $(RISCV)/linux_wrapper $(RISCV)/bao.bin $(RISCV)/fw_payload.bin
+	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/linux_wrapper $(RISCV)/bao.bin $(RISCV)/fw_payload.bin
 else
 	 $(error BAO-GUEST must be either "linux" or "baremetal")
 endif
@@ -203,7 +191,7 @@ alsaqr.dtb:
 	dtc -I dts $(OPENSBI_DIR)/platform/$(PLATFORM)/fdt_gen/alsaqr.dts -O dtb -o $@
 
 # Qemu-related rules
-bare-qemu:
+qemu:
 	qemu-system-riscv64 -nographic -M virt -cpu rv64 -m 4G -smp $(QEMU_N_HARTS) -serial pty -bios $(RISCV)/fw_payload.elf -device virtio-serial-device -chardev pty,id=serial3 -device virtconsole,chardev=serial3 -S -gdb tcp:localhost:9000
 
 lqemu:
@@ -213,6 +201,7 @@ lqemu:
 clean:
 	rm -rf $(RISCV)/baremetal.*
 	rm -rf $(RISCV)/bao.*
+	rm -rf $(RISCV)/*.dtb
 	rm -rf $(RISCV)/linux_wrapper.*
 	rm -rf $(RISCV)/*.dtb
 	rm -rf $(CACHETEST_DIR)/*.elf $(ROOTFS_DIR)/cachetest.elf
@@ -223,6 +212,7 @@ clean:
 	make -C $(OPENSBI_DIR) distclean
 	make -C $(BAREMETAL_DIR) clean
 	make -C $(BAO_DIR) clean
+	make -C $(DTB_DIR) clean NAME=$(PLATFORM_RAW) TARGET_FREQ=$(PLAT_TARGET_FREQ) NUM_HARTS=$(PLAT_NUM_HARTS)
 
 clean-all: clean
 	rm -rf $(RISCV)
