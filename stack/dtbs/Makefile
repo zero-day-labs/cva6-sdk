@@ -23,12 +23,18 @@ else
 	TARGET_BAUDRATE := 9600
 endif
 
+FILE_PATH = $(PLAT)
+
+ifeq ($(MINIMAL),y)
+	FILE_PATH = $(PLAT)-minimal
+endif
+
 clean:
-	rm -f $(NAME).dts $(NAME)-minimal.dts
+	rm -f $(PLAT).dts $(PLAT)-minimal.dts
 	rm -f ./bins/*
 
 dts: clean
-	cp alsaqr-template.dts $(NAME).dts
-	python3 dts_gen.py $(NAME).dts $(NUM_HARTS) $(TARGET_FREQ) $(HALF_FREQ) $(TARGET_BAUDRATE) $(MINIMAL) $(IRQC) 
+	cp $(PLAT)-template.dts $(FILE_PATH).dts
+	python3 dts_gen.py $(FILE_PATH).dts $(NUM_HARTS) $(TARGET_FREQ) $(HALF_FREQ) $(TARGET_BAUDRATE) $(MINIMAL) $(IRQC) $(PLAT)
 
 PHONY: clean.dts alsaqr.dts

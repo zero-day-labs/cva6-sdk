@@ -98,9 +98,9 @@ TIMER= """    timer@18000000 {
       reg-names = "control";
     };
 """
-UART = """    uart@40000000 {
+UART = """    uart@uart-addr {
       compatible = "ns16550";
-      reg = <0x0 0x40000000 0x0 0x1000>;
+      reg = <0x0 0xuart-addr 0x0 0x1000>;
       clock-frequency = <targetfreq>;
       current-speed = <targetbaud>;
       interrupt-parent = irqc;
@@ -115,7 +115,7 @@ def replace_strings(file_path, old_string, new_string):
             print(line.replace(old_string, new_string), end='')
 
 if __name__ == "__main__":
-    if len(sys.argv) != 8:
+    if len(sys.argv) != 9:
         print("Usage: python3 dts_gen.py <file-path> <num_harts> <target-freq> <half-freq> <target-baud> <minimal> <irqc>")
         sys.exit(1)
     
@@ -124,6 +124,7 @@ if __name__ == "__main__":
     num_harts = sys.argv[2]
     minimal = sys.argv[6]
     irqc = sys.argv[7]
+    plat = sys.argv[8]
 
     cpus = ""
     clint_interrupts = ""
@@ -154,17 +155,30 @@ if __name__ == "__main__":
     clint = CLINT.replace("all-interrupts",clint_interrupts)
     debug= DEBUG.replace("all-interrupts",dbg_interrupts)
     
+    if (plat == "alsaqr"):
+      uart = UART.replace("uart-addr","40000000")
+    elif (plat == "culsans"):
+      uart = UART.replace("uart-addr","10000000")
+
     if (irqc == "plic"):
       timer = TIMER.replace("irqc","<&PLIC0>")
       timer = timer.replace("intp-timer","<0x00000004 0x00000005 0x00000006 0x00000007>")
-      uart = UART.replace("irqc","<&PLIC0>")
-      uart = uart.replace("intp-uart","<2>")
+      uart = uart.replace("irqc","<&PLIC0>")
+      if (plat == "alsaqr"):
+        uart = uart.replace("intp-uart","<2>")
+      elif (plat == "culsans"):
+        uart = uart.replace("intp-uart","<1>")
+
       plic = PLIC.replace("all-interrupts",plic_interrupts)
     elif (irqc == "aplic"):
       timer = TIMER.replace("irqc","<&APLICS>")
       timer = timer.replace("intp-timer","<0x00000004 0x4 0x00000005 0x4 0x00000006 0x4 0x00000007 0x4>")
-      uart = UART.replace("irqc","<&APLICS>")
-      uart = uart.replace("intp-uart","<2 0x4>")
+      uart = uart.replace("irqc","<&APLICS>")
+      if (plat == "alsaqr"):
+        uart = uart.replace("intp-uart","<2 0x4>")
+      elif (plat == "culsans"):
+        uart = uart.replace("intp-uart","<1 0x4>")
+
       aplic_m = APLICM.replace("irqc-mode","interrupts-extended")
       aplic_s = APLICS.replace("irqc-mode","interrupts-extended")
       aplic_m = aplic_m.replace("all-interrupts",aplic_m_interrupts)
@@ -172,8 +186,11 @@ if __name__ == "__main__":
     elif (irqc == "aia"):
       timer = TIMER.replace("irqc","<&APLICS>")
       timer = timer.replace("intp-timer","<0x00000004 0x4 0x00000005 0x4 0x00000006 0x4 0x00000007 0x4>")
-      uart = UART.replace("irqc","<&APLICS>")
-      uart = uart.replace("intp-uart","<2 0x4>")
+      uart = uart.replace("irqc","<&APLICS>")
+      if (plat == "alsaqr"):
+        uart = uart.replace("intp-uart","<2 0x4>")
+      elif (plat == "culsans"):
+        uart = uart.replace("intp-uart","<1 0x4>")
       aplic_m = APLICM.replace("irqc-mode","msi-parent")
       aplic_s = APLICS.replace("irqc-mode","msi-parent")
       aplic_m = aplic_m.replace("all-interrupts","<&IMSICM>")
@@ -198,7 +215,10 @@ if __name__ == "__main__":
       peripherals += uart
       mem_size = "0x10000000"
     else:
-      peripherals += clint+debug+timer+uart
+      if (plat == "alsaqr"):
+        peripherals += clint+debug+timer+uart
+      else:
+        peripherals += clint+uart
 
 
     replace_strings(file_path,"target_cpus",cpus)

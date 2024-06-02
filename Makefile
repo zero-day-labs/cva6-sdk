@@ -164,12 +164,12 @@ $(RISCV)/baremetal.bin:
 	cp $(BAREMETAL_DIR)/build/$(PLATFORM_RAW)/baremetal.elf $(RISCV)/baremetal.elf
 
 $(RISCV)/$(PLATFORM_RAW).dtb:
-	make -C $(DTB_DIR) dts NAME=$(PLATFORM_RAW) TARGET_FREQ=$(PLAT_TARGET_FREQ) NUM_HARTS=$(PLAT_NUM_HARTS) MINIMAL=n IRQC=$(PLAT_IRQC)
+	make -C $(DTB_DIR) dts PLAT=$(PLATFORM_RAW) TARGET_FREQ=$(PLAT_TARGET_FREQ) NUM_HARTS=$(PLAT_NUM_HARTS) MINIMAL=n IRQC=$(PLAT_IRQC)
 	dtc -I dts $(DTB_DIR)/$(PLATFORM_RAW).dts -O dtb -o $(DTB_DIR)/bins/$(PLATFORM_RAW).dtb 
 	cp $(DTB_DIR)/bins/$(PLATFORM_RAW).dtb $@
 
 $(RISCV)/$(PLATFORM_RAW)-minimal.dtb:
-	make -C $(DTB_DIR) dts NAME=$(PLATFORM_RAW)-minimal TARGET_FREQ=$(PLAT_TARGET_FREQ) NUM_HARTS=$(PLAT_NUM_HARTS) MINIMAL=y IRQC=$(PLAT_IRQC)
+	make -C $(DTB_DIR) dts PLAT=$(PLATFORM_RAW)-minimal TARGET_FREQ=$(PLAT_TARGET_FREQ) NUM_HARTS=$(PLAT_NUM_HARTS) MINIMAL=y IRQC=$(PLAT_IRQC)
 	dtc -I dts $(DTB_DIR)/$(PLATFORM_RAW)-minimal.dts -O dtb -o $(DTB_DIR)/bins/$(PLATFORM_RAW)-minimal.dtb
 	cp $(DTB_DIR)/bins/$(PLATFORM_RAW)-minimal.dtb $@
 
