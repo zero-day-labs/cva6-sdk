@@ -1,0 +1,104 @@
+// Copyright 2021 ETH Zurich and University of Bologna.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+
+// TODO(niwis) auto generate
+/dts-v1/;
+/ {
+  #address-cells = <2>;
+  #size-cells = <2>;
+  compatible = "eth,occamy-dev";
+  model = "eth,occamy";
+  chosen {
+    stdout-path = "/soc/uart@40000000:38400";
+  };
+  memory@1C000000 {
+    device_type = "memory";
+    reg = <0x0 0x1C000000 0x0 0x1000>;
+  };
+  memory@80200000 {
+    device_type = "memory";
+    reg = <0x0 0x80200000 0x0 0x10000000>;
+  };
+  cpus {
+    #address-cells = <1>;
+    #size-cells = <0>;
+    timebase-frequency = <20000000>;
+    CPU0: cpu@0 {
+      phandle = <0x01>;
+      device_type = "cpu";
+      status = "okay";
+      compatible = "eth,ariane", "riscv";
+      clock-frequency = <40000000>;
+      riscv,isa = "rv64fimadch_smaia_ssaia";
+      mmu-type = "riscv,sv39";
+      tlb-split;
+      reg = <0>;
+      CPU0_intc: interrupt-controller {
+        phandle = <0x02>;
+        #address-cells = <1>;
+        #interrupt-cells = <1>;
+        interrupt-controller;
+        compatible = "riscv,cpu-intc";
+      };
+    };
+    CPU1: cpu@1 {
+      phandle = <0x03>;
+      device_type = "cpu";
+      status = "okay";
+      compatible = "eth,ariane", "riscv";
+      clock-frequency = <40000000>;
+      riscv,isa = "rv64fimadch_smaia_ssaia";
+      mmu-type = "riscv,sv39";
+      tlb-split;
+      reg = <1>;
+      CPU1_intc: interrupt-controller {
+        phandle = <0x04>;
+        #address-cells = <1>;
+        #interrupt-cells = <1>;
+        interrupt-controller;
+        compatible = "riscv,cpu-intc";
+      };
+    };
+
+  };
+  soc: soc {
+    #address-cells = <2>;
+    #size-cells = <2>;
+    compatible = "eth,ariane-bare-soc", "simple-bus";
+    ranges;
+
+    APLICS: interrupt-controller@d000000 {
+			phandle = <0x06>;
+			riscv,num-sources = <255>;
+			reg = <0x00 0xd000000 0x00 0x8000>;
+			msi-parent = <&IMSICS>;
+			interrupt-controller;
+			#interrupt-cells = <0x02>;
+			compatible = "riscv,aplic";
+		};
+
+		IMSICS: interrupt-controller@28000000 {
+			phandle = <0x08>;
+			riscv,ipi-id = <0x01>;
+			riscv,num-ids = <63>;
+			reg = <0x00 0x28000000 0x00 0x2000>;
+			interrupts-extended = <&CPU0_intc 0x09>, <&CPU1_intc 9>;
+			msi-controller;
+			interrupt-controller;
+			#interrupt-cells = <0x00>;
+			compatible = "riscv,imsics";
+		};
+
+    uart@40000000 {
+      compatible = "ns16550";
+      reg = <0x0 0x40000000 0x0 0x1000>;
+      clock-frequency = <40000000>;
+      current-speed = <38400>;
+      interrupt-parent = <&APLICS>;
+      interrupts = <2 0x4>;
+      reg-shift = <2>; // regs are spaced on 32 bit boundary
+      reg-io-width = <4>; // only 32-bit access are supported
+    };
+  };
+};

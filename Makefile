@@ -164,14 +164,12 @@ $(RISCV)/baremetal.bin:
 	cp $(BAREMETAL_DIR)/build/$(PLATFORM_RAW)/baremetal.elf $(RISCV)/baremetal.elf
 
 $(RISCV)/$(PLATFORM_RAW).dtb:
-	make -C $(DTB_DIR) dts PLAT=$(PLATFORM_RAW) TARGET_FREQ=$(PLAT_TARGET_FREQ) NUM_HARTS=$(PLAT_NUM_HARTS) MINIMAL=n IRQC=$(PLAT_IRQC)
-	dtc -I dts $(DTB_DIR)/$(PLATFORM_RAW).dts -O dtb -o $(DTB_DIR)/bins/$(PLATFORM_RAW).dtb 
-	cp $(DTB_DIR)/bins/$(PLATFORM_RAW).dtb $@
+	dtc -I dts $(DTB_DIR)/$(PLATFORM_RAW)-$(PLAT_IRQC).dts -O dtb -o $(DTB_DIR)/bins/$(PLATFORM_RAW)-$(PLAT_IRQC).dtb 
+	cp $(DTB_DIR)/bins/$(PLATFORM_RAW)-$(PLAT_IRQC).dtb $@
 
 $(RISCV)/$(PLATFORM_RAW)-minimal.dtb:
-	make -C $(DTB_DIR) dts PLAT=$(PLATFORM_RAW)-minimal TARGET_FREQ=$(PLAT_TARGET_FREQ) NUM_HARTS=$(PLAT_NUM_HARTS) MINIMAL=y IRQC=$(PLAT_IRQC)
-	dtc -I dts $(DTB_DIR)/$(PLATFORM_RAW)-minimal.dts -O dtb -o $(DTB_DIR)/bins/$(PLATFORM_RAW)-minimal.dtb
-	cp $(DTB_DIR)/bins/$(PLATFORM_RAW)-minimal.dtb $@
+	dtc -I dts $(DTB_DIR)/$(PLATFORM_RAW)-linux-guest-$(PLAT_IRQC).dts -O dtb -o $(DTB_DIR)/bins/$(PLATFORM_RAW)-linux-guest-$(PLAT_IRQC).dtb 
+	cp $(DTB_DIR)/bins/$(PLATFORM_RAW)-linux-guest-$(PLAT_IRQC).dtb $@
 
 $(RISCV)/linux_wrapper: $(RISCV)/Image $(RISCV)/$(PLATFORM_RAW)-minimal.dtb
 	make -C $(LINUX_WRAPPER_DIR) CROSS_COMPILE=$(TOOLCHAIN_UNK) ARCH=rv64 IMAGE=$< DTB=$(RISCV)/$(PLATFORM_RAW)-minimal.dtb TARGET=$@
@@ -181,7 +179,7 @@ $(RISCV)/bao.bin:
 	cp $(BAO_DIR)/bin/$(PLATFORM_RAW)/$(BAO_CONFIG)/bao.elf $(RISCV)/bao.elf
 	cp $(BAO_DIR)/bin/$(PLATFORM_RAW)/$(BAO_CONFIG)/bao.bin $(RISCV)/bao.bin
 
-$(RISCV)/fw_payload.bin: $(RISCV)/$(PLATFORM_RAW).dtb
+$(RISCV)/fw_payload.bin:
 	make -C $(OPENSBI_DIR) $(sbi-mk)
 	cp $(OPENSBI_DIR)/build/platform/$(PLATFORM)/firmware/fw_payload.elf $(RISCV)/fw_payload.elf
 	cp $(OPENSBI_DIR)/build/platform/$(PLATFORM)/firmware/fw_payload.bin $(RISCV)/fw_payload.bin
@@ -194,17 +192,32 @@ $(RISCV)/test_fw_payload.bin:
 # specific recipes
 gcc: $(CC)
 
+dtb-min: $(RISCV)/$(PLATFORM_RAW)-minimal.dtb
+dtb: $(RISCV)/$(PLATFORM_RAW).dtb
+
 fw_payload.bin: $(RISCV)/fw_payload.bin
 test_fw_payload.bin: $(RISCV)/test_fw_payload.bin
 
 vmlinux: $(RISCV)/vmlinux
-linux: $(RISCV)/Image $(RISCV)/fw_payload.bin
-baremetal: $(RISCV)/baremetal.bin $(RISCV)/fw_payload.bin
+linux: 
+ifneq ($(QEMU),)
+	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/Image $(RISCV)/fw_payload.bin
+else
+	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/Image dtb $(RISCV)/fw_payload.bin
+endif
+
+baremetal:
+ifneq ($(QEMU),)
+	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/baremetal.bin $(RISCV)/fw_payload.bin
+else
+	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/baremetal.bin dtb $(RISCV)/fw_payload.bin
+endif
+
 bao:
 ifeq ($(BAO-GUEST),baremetal)
-	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/baremetal.bin $(RISCV)/bao.bin $(RISCV)/fw_payload.bin
+	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/baremetal.bin $(RISCV)/bao.bin dtb $(RISCV)/fw_payload.bin
 else ifeq ($(BAO-GUEST),linux)
-	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/linux_wrapper $(RISCV)/bao.bin $(RISCV)/fw_payload.bin
+	@$(MAKE) -f $(MAKEFILE_LIST) $(RISCV)/linux_wrapper $(RISCV)/bao.bin dtb $(RISCV)/fw_payload.bin
 else
 	 $(error BAO-GUEST must be either "linux" or "baremetal")
 endif
@@ -253,10 +266,17 @@ help:
 	@echo "    where tool can be any one of:"
 	@echo "        gcc"
 	@echo ""
-	@echo "build linux images for cva6"
-	@echo "        make images"
+	@echo "build linux images for cva6-based SoC"
+	@echo "        make linux PLAT=<alsaqr|culsans|cva6> PLAT_IRQC=<plic|aplic|aia>"
 	@echo "    for specific artefact"
 	@echo "        make [vmlinux|fw_payload.bin]"
+	@echo ""
+	@echo "build baremetal images for cva6-based SoC"
+	@echo "         make baremetal BARE=1 PLAT=<alsaqr|culsans|cva6> PLAT_IRQC=<plic|aplic|aia>"
+	@echo ""
+	@echo "build bao+guest images for cva6-based SoC"
+	@echo "         make bao BAO-GUEST=linux PLAT=<alsaqr|culsans|cva6> PLAT_IRQC=<plic|aplic|aia>"
+	@echo "         make bao BAO-GUEST=baremetal BARE=1 PLAT=<alsaqr|culsans|cva6> PLAT_IRQC=<plic|aplic|aia>"
 	@echo ""
 	@echo "There are two clean targets:"
 	@echo "    Clean only build object"
