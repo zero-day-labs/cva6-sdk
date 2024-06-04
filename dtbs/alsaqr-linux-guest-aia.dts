@@ -70,7 +70,7 @@
 
     APLICS: interrupt-controller@d000000 {
 			phandle = <0x06>;
-			riscv,num-sources = <0x60>;
+			riscv,num-sources = <255>;
 			reg = <0x00 0xd000000 0x00 0x8000>;
 			msi-parent = <&IMSICS>;
 			interrupt-controller;
@@ -81,7 +81,7 @@
 		IMSICS: interrupt-controller@28000000 {
 			phandle = <0x08>;
 			riscv,ipi-id = <0x01>;
-			riscv,num-ids = <255>;
+			riscv,num-ids = <63>;
 			reg = <0x00 0x28000000 0x00 0x2000>;
 			interrupts-extended = <&CPU0_intc 0x09>, <&CPU1_intc 9>;
 			msi-controller;

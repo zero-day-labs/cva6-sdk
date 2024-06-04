@@ -56,8 +56,8 @@
     ranges;
 
     APLICS: interrupt-controller@d000000 {
-			riscv,num-sources = <0x60>;
-			reg = <0x00 0xd000000 0x00 0x8000>;
+			riscv,num-sources = <32>;
+			reg = <0x00 0xd000000 0x00 0x4000>;
 			msi-parent = <&IMSICS>;
 			interrupt-controller;
 			#interrupt-cells = <0x02>;
@@ -65,10 +65,10 @@
 		};
 
 		APLICM: interrupt-controller@c000000 {
-			riscv,delegate = <&APLICS 0x01 0x60>;
+			riscv,delegate = <&APLICS 0x01 32>;
 			riscv,children = <&APLICS>;
-			riscv,num-sources = <0x60>;
-			reg = <0x00 0xc000000 0x00 0x8000>;
+			riscv,num-sources = <32>;
+			reg = <0x00 0xc000000 0x00 0x4000>;
 			msi-parent = <&IMSICM>;
 			interrupt-controller;
 			#interrupt-cells = <0x02>;
@@ -78,7 +78,7 @@
 		IMSICS: interrupt-controller@28000000 {
       riscv,guest-index-bits = <1>;
 			riscv,ipi-id = <0x01>;
-			riscv,num-ids = <255>;
+			riscv,num-ids = <63>;
 			reg = <0x00 0x28000000 0x00 0x4000>;
 			interrupts-extended = <&CPU0_intc 9>, <&CPU1_intc 9>;
 			msi-controller;
@@ -89,7 +89,7 @@
 
 		IMSICM: interrupt-controller@24000000 {
 			riscv,ipi-id = <0x01>;
-			riscv,num-ids = <255>;
+			riscv,num-ids = <63>;
 			reg = <0x00 0x24000000 0x00 0x2000>;
 			interrupts-extended = <&CPU0_intc 11>, <&CPU1_intc 11>;
 			msi-controller;
