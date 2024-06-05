@@ -3,7 +3,7 @@
 	url = https://github.com/buildroot/buildroot.git
 [submodule "opensbi"]
 	path = stack/opensbi
-	url = https://github.com/alsaqr-platform/opensbi.git
+	url = https://github.com/D3boker1/opensbi.git
 [submodule "Splash-3"]
 	path = benchmarks/Splash-3
 	url = https://github.com/AlSaqr-platform/Splash-3
