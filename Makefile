@@ -248,7 +248,6 @@ clean:
 	make -C $(OPENSBI_DIR) distclean
 	make -C $(BAREMETAL_DIR) clean
 	make -C $(BAO_DIR) clean
-	make -C $(DTB_DIR) clean NAME=$(PLATFORM_RAW) TARGET_FREQ=$(PLAT_TARGET_FREQ) NUM_HARTS=$(PLAT_NUM_HARTS)
 
 clean-all: clean
 	rm -rf $(RISCV)
