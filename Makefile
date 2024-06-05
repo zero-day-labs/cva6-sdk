@@ -164,10 +164,12 @@ $(RISCV)/baremetal.bin:
 	cp $(BAREMETAL_DIR)/build/$(PLATFORM_RAW)/baremetal.elf $(RISCV)/baremetal.elf
 
 $(RISCV)/$(PLATFORM_RAW).dtb:
+	mkdir -p $(DTB_DIR)/bins
 	dtc -I dts $(DTB_DIR)/$(PLATFORM_RAW)-$(PLAT_IRQC).dts -O dtb -o $(DTB_DIR)/bins/$(PLATFORM_RAW)-$(PLAT_IRQC).dtb 
 	cp $(DTB_DIR)/bins/$(PLATFORM_RAW)-$(PLAT_IRQC).dtb $@
 
 $(RISCV)/$(PLATFORM_RAW)-minimal.dtb:
+	mkdir -p $(DTB_DIR)/bins
 	dtc -I dts $(DTB_DIR)/$(PLATFORM_RAW)-linux-guest-$(PLAT_IRQC).dts -O dtb -o $(DTB_DIR)/bins/$(PLATFORM_RAW)-linux-guest-$(PLAT_IRQC).dtb 
 	cp $(DTB_DIR)/bins/$(PLATFORM_RAW)-linux-guest-$(PLAT_IRQC).dtb $@
 
