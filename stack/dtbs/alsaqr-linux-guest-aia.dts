@@ -100,5 +100,11 @@
       reg-shift = <2>; // regs are spaced on 32 bit boundary
       reg-io-width = <4>; // only 32-bit access are supported
     };
+
+    idma0: master@50000000{
+      compatible = "zdl,idma";
+      reg = <0x0 0x50000000 0x0 0x00001000>;
+      iommus = <&riscv_iommu 10>;
+    };
   };
 };

@@ -46,7 +46,7 @@ LINUX_WRAPPER_DIR := $(TOOLS_DIR)/linux-wrapper
 SWSTACK_DIR := $(ROOT)/stack
 OPENSBI_DIR := $(SWSTACK_DIR)/opensbi
 LINUX_DIR := $(SWSTACK_DIR)/linux
-LINUX_VER := linux-6.1-rc4-aia
+LINUX_VER := linux-6.3-aia-iommu
 ROOTFS_DIR := $(LINUX_DIR)/rootfs
 BAREMETAL_DIR := $(SWSTACK_DIR)/baremetal-app
 BAO_DIR := $(SWSTACK_DIR)/bao-hypervisor
@@ -140,7 +140,8 @@ $(ROOTFS_DIR)/perf: $(CC)
 	cp -r $(SPLASH3_DIR)/codes/splash3 $@/splash3
 	cp -r $(SPLASH3_DIR)/codes/kernels $@/splash3/codes
 
-$(RISCV)/rootfs.cpio: build-buildroot-defconfig $(busybox_defconfig) $(CC) $(ROOTFS_DIR)/cachetest.elf $(ROOTFS_DIR)/perf
+$(RISCV)/rootfs.cpio: build-buildroot-defconfig $(busybox_defconfig) $(CC) $(ROOTFS_DIR)/cachetest.elf $(ROOTFS_DIR)/perf $(ROOTFS_DIR)/etc/iommu_test.c
+	$(CC) $(ROOTFS_DIR)/etc/iommu_test.c -o $(ROOTFS_DIR)/etc/iommu_test.elf
 	mkdir -p $(RISCV)
 	make -C $(BUILDROOT_DIR) $(buildroot-mk)
 	cp $(BUILDROOT_DIR)/output/images/rootfs.cpio $@
