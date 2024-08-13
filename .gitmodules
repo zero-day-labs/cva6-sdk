@@ -22,3 +22,6 @@
 [submodule "stack/tests-iopmp"]
 	path = stack/tests-iopmp
 	url = git@github.com:luisccc/riscv-iopmp-tests.git
+[submodule "stack/tests-iommu"]
+	path = stack/tests-iommu
+	url = git@github.com:zero-day-labs/riscv-iommu-tests.git
