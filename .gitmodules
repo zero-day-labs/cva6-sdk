@@ -16,3 +16,6 @@
 [submodule "stack/linux/linux-6.1-rc4-aia"]
 	path = stack/linux/linux-6.3-aia-iommu
 	url = https://github.com/D3boker1/linux-aia.git
+[submodule "stack/tests-aia"]
+	path = stack/tests-aia
+	url = git@github.com:D3boker1/riscv-tests-framework.git

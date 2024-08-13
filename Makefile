@@ -51,6 +51,7 @@ ROOTFS_DIR := $(LINUX_DIR)/rootfs
 BAREMETAL_DIR := $(SWSTACK_DIR)/baremetal-app
 BAO_DIR := $(SWSTACK_DIR)/bao-hypervisor
 DTB_DIR := $(SWSTACK_DIR)/dtbs
+TESTS_AIA_DIR := $(SWSTACK_DIR)/tests-aia
 
 CONFIGS_DIR := $(ROOT)/configs
 
@@ -126,6 +127,10 @@ build-linux-defconfig:
 $(CC): build-buildroot-defconfig build-linux-defconfig $(busybox_defconfig)
 	make -C $(BUILDROOT_DIR) defconfig BR2_DEFCONFIG=$(buildroot_defconfig)
 	make -C $(BUILDROOT_DIR) host-gcc-final $(buildroot-mk)
+
+tests-aia: install-dir
+	make -C $(TESTS_AIA_DIR) PLAT=$(PLAT) LOG_LEVEL=3
+	cp $(TESTS_AIA_DIR)/build/$(PLAT)/rvh_test.elf $(RISCV)/aia_test.elf
 
 all: $(CC)
 
@@ -251,6 +256,7 @@ clean:
 	make -C $(OPENSBI_DIR) distclean
 	make -C $(BAREMETAL_DIR) clean
 	make -C $(BAO_DIR) clean
+	make -C $(TESTS_AIA_DIR) clean
 
 clean-all: clean
 	rm -rf $(RISCV)
