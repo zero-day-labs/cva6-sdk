@@ -19,3 +19,6 @@
 [submodule "stack/tests-aia"]
 	path = stack/tests-aia
 	url = git@github.com:D3boker1/riscv-tests-framework.git
+[submodule "stack/tests-iopmp"]
+	path = stack/tests-iopmp
+	url = git@github.com:luisccc/riscv-iopmp-tests.git

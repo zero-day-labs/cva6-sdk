@@ -52,6 +52,7 @@ BAREMETAL_DIR := $(SWSTACK_DIR)/baremetal-app
 BAO_DIR := $(SWSTACK_DIR)/bao-hypervisor
 DTB_DIR := $(SWSTACK_DIR)/dtbs
 TESTS_AIA_DIR := $(SWSTACK_DIR)/tests-aia
+TESTS_IOPMP_DIR := $(SWSTACK_DIR)/tests-iopmp
 
 CONFIGS_DIR := $(ROOT)/configs
 
@@ -131,6 +132,10 @@ $(CC): build-buildroot-defconfig build-linux-defconfig $(busybox_defconfig)
 tests-aia: install-dir
 	make -C $(TESTS_AIA_DIR) PLAT=$(PLAT) LOG_LEVEL=3
 	cp $(TESTS_AIA_DIR)/build/$(PLAT)/rvh_test.elf $(RISCV)/aia_test.elf
+
+tests-iopmp: install-dir
+	make -C $(TESTS_IOPMP_DIR) PLAT=$(PLAT) LOG_LEVEL=3
+	cp $(TESTS_IOPMP_DIR)/build/$(PLAT)/rv_iopmp_test.elf $(RISCV)/iopmp_test.elf
 
 all: $(CC)
 
@@ -257,6 +262,7 @@ clean:
 	make -C $(BAREMETAL_DIR) clean
 	make -C $(BAO_DIR) clean
 	make -C $(TESTS_AIA_DIR) clean
+	make -C $(TESTS_IOPMP_DIR) clean
 
 clean-all: clean
 	rm -rf $(RISCV)
