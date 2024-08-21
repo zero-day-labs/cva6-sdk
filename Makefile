@@ -11,6 +11,7 @@ PLAT_NUM_HARTS := 2
 PLAT_IRQC := plic
 ##################################################################
 
+UNK_URL := https://static.dev.sifive.com/dev-tools/freedom-tools/v2020.12/riscv64-unknown-elf-toolchain-10.2.0-2020.12.8-x86_64-linux-ubuntu14.tar.gz
 
 PLATFORM_RAW := $(PLAT)
 
@@ -41,6 +42,7 @@ CACHETEST_DIR := $(BENCHMARK_DIR)/cachetest
 
 TOOLS_DIR := $(ROOT)/tools
 BUILDROOT_DIR := $(TOOLS_DIR)/buildroot
+UNKNOWN_DIR := $(TOOLS_DIR)/unknown-toolchain
 LINUX_WRAPPER_DIR := $(TOOLS_DIR)/linux-wrapper
 
 SWSTACK_DIR := $(ROOT)/stack
@@ -57,7 +59,7 @@ TESTS_IOPMP_DIR := $(SWSTACK_DIR)/tests-iopmp
 
 CONFIGS_DIR := $(ROOT)/configs
 
-TOOLCHAIN_UNK := riscv64-unknown-elf-
+TOOLCHAIN_UNK := $(UNKNOWN_DIR)/bin/riscv64-unknown-elf-
 TOOLCHAIN_PREFIX := $(BUILDROOT_DIR)/output/host/bin/riscv$(XLEN)-buildroot-linux-gnu-
 CC          := $(TOOLCHAIN_PREFIX)gcc
 OBJCOPY     := $(TOOLCHAIN_PREFIX)objcopy
@@ -126,20 +128,27 @@ build-linux-defconfig:
 	cp $(linux_defconfig)_base $(linux_defconfig)
 	@echo "CONFIG_INITRAMFS_SOURCE=\"$(RISCV)/rootfs.cpio\"" >> $(linux_defconfig) 
 
+unknown-toolchain:
+	wget $(UNK_URL) -O $(UNKNOWN_DIR).tar.gz
+	mkdir $(UNKNOWN_DIR)
+	tar xvf $(UNKNOWN_DIR).tar.gz -C $(UNKNOWN_DIR) --strip-components 1
+
 $(CC): build-buildroot-defconfig build-linux-defconfig $(busybox_defconfig)
 	make -C $(BUILDROOT_DIR) defconfig BR2_DEFCONFIG=$(buildroot_defconfig)
 	make -C $(BUILDROOT_DIR) host-gcc-final $(buildroot-mk)
 
+toolchain: $(CC) unknown-toolchain 
+
 tests-aia: install-dir
-	make -C $(TESTS_AIA_DIR) PLAT=$(PLAT) LOG_LEVEL=3
+	make -C $(TESTS_AIA_DIR) PLAT=$(PLAT) LOG_LEVEL=3 CROSS_COMPILE=$(TOOLCHAIN_UNK)
 	cp $(TESTS_AIA_DIR)/build/$(PLAT)/rvh_test.elf $(RISCV)/aia_test.elf
 
 tests-iommu: install-dir
-	make -C $(TESTS_IOMMU_DIR) PLAT=$(PLAT) LOG_LEVEL=3
+	make -C $(TESTS_IOMMU_DIR) PLAT=$(PLAT) LOG_LEVEL=3 CROSS_COMPILE=$(TOOLCHAIN_UNK)
 	cp $(TESTS_IOMMU_DIR)/build/$(PLAT)/rv_iommu_test.elf $(RISCV)/iommu_test.elf
 
 tests-iopmp: install-dir
-	make -C $(TESTS_IOPMP_DIR) PLAT=$(PLAT) LOG_LEVEL=3
+	make -C $(TESTS_IOPMP_DIR) PLAT=$(PLAT) LOG_LEVEL=3 CROSS_COMPILE=$(TOOLCHAIN_UNK)
 	cp $(TESTS_IOPMP_DIR)/build/$(PLAT)/rv_iopmp_test.elf $(RISCV)/iopmp_test.elf
 
 all: $(CC)
@@ -282,9 +291,13 @@ help:
 	@echo "install compiler with"
 	@echo "    make gcc"
 	@echo ""
-	@echo "install [tool] with compiler"
-	@echo "    where tool can be any one of:"
-	@echo "        gcc"
+	@echo "install toolchain with:"
+	@echo "    Linux/Unknown target toolchain:"
+	@echo "        make toolchain"
+	@echo "    Linux target toolchain:"
+	@echo "        make gcc"
+	@echo "    Unknown target toolchain:"
+	@echo "        make unknown-toolchain"
 	@echo ""
 	@echo "build linux images for cva6-based SoC"
 	@echo "        make linux PLAT=<alsaqr|culsans|cva6> PLAT_IRQC=<plic|aplic|aia>"
